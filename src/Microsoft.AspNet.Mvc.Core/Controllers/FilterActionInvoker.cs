@@ -46,6 +46,9 @@ namespace Microsoft.AspNet.Mvc.Controllers
         private ActionExecutingContext _actionExecutingContext;
         private ActionExecutedContext _actionExecutedContext;
 
+        // Used when action filters are elided.
+        private IActionResult _result;
+
         private ResultExecutingContext _resultExecutingContext;
         private ResultExecutedContext _resultExecutedContext;
 
@@ -166,7 +169,9 @@ namespace Microsoft.AspNet.Mvc.Controllers
         /// <remarks>This method will not be called if <see cref="CreateInstance"/> returns <c>null</c>.</remarks>
         protected abstract void ReleaseInstance(object instance);
 
-        protected abstract Task<IActionResult> InvokeActionAsync(ActionExecutingContext actionExecutingContext);
+        protected abstract Task<IActionResult> InvokeActionAsync(
+            object instance,
+            IDictionary<string, object> arguments);
 
         protected abstract Task<IDictionary<string, object>> BindActionArgumentsAsync(
             ActionContext context,
@@ -178,13 +183,15 @@ namespace Microsoft.AspNet.Mvc.Controllers
             _cursor = new FilterCursor(_filters);
 
             ActionContext.ModelState.MaxAllowedErrors = _maxModelValidationErrors;
-            
-            await InvokeAllAuthorizationFiltersAsync();
+
+            if (_cursor.HasFilter<IAuthorizationFilter, IAsyncAuthorizationFilter>())
+            {
+                await InvokeAllAuthorizationFiltersAsync();
+            }
 
             // If Authorization Filters return a result, it's a short circuit because
             // authorization failed. We don't execute Result Filters around the result.
-            Debug.Assert(_authorizationContext != null);
-            if (_authorizationContext.Result != null)
+            if (_authorizationContext?.Result != null)
             {
                 await InvokeResultAsync(_authorizationContext.Result);
                 return;
@@ -192,7 +199,14 @@ namespace Microsoft.AspNet.Mvc.Controllers
 
             try
             {
-                await InvokeAllResourceFiltersAsync();
+                if (_cursor.HasFilter<IResourceFilter, IAsyncResourceFilter>())
+                {
+                    await InvokeAllResourceFiltersAsync();
+                }
+                else
+                {
+                    await SkipResourceFiltersAsync();
+                }
             }
             finally
             {
@@ -207,8 +221,7 @@ namespace Microsoft.AspNet.Mvc.Controllers
 
             // We've reached the end of resource filters. If there's an unhandled exception on the context then
             // it should be thrown and middleware has a chance to handle it.
-            Debug.Assert(_resourceExecutedContext != null);
-            if (_resourceExecutedContext.Exception != null && !_resourceExecutedContext.ExceptionHandled)
+            if (_resourceExecutedContext?.Exception != null && !_resourceExecutedContext.ExceptionHandled)
             {
                 if (_resourceExecutedContext.ExceptionDispatchInfo == null)
                 {
@@ -304,6 +317,71 @@ namespace Microsoft.AspNet.Mvc.Controllers
 
             _resourceExecutingContext = context;
             return InvokeResourceFilterAsync();
+        }
+
+        private async Task SkipResourceFiltersAsync()
+        {
+            ActionBindingContext = new ActionBindingContext();
+            ActionBindingContext.InputFormatters = new CopyOnWriteList<IInputFormatter>(_inputFormatters);
+            ActionBindingContext.OutputFormatters = new CopyOnWriteList<IOutputFormatter>(_outputFormatters);
+            ActionBindingContext.ModelBinder = new CompositeModelBinder(_modelBinders);
+            ActionBindingContext.ValidatorProvider = new CompositeModelValidatorProvider(_modelValidatorProviders);
+
+            var valueProviderFactoryContext = new ValueProviderFactoryContext(
+                ActionContext.HttpContext,
+                ActionContext.RouteData.Values);
+
+            ActionBindingContext.ValueProvider = await CompositeValueProvider.CreateAsync(
+                _valueProviderFactories,
+                valueProviderFactoryContext);
+
+            // >> ExceptionFilters >> Model Binding >> ActionFilters >> Action
+            if (_cursor.HasFilter<IExceptionFilter, IAsyncExceptionFilter>())
+            {
+                await InvokeAllExceptionFiltersAsync();
+            }
+            else
+            {
+                await SkipExceptionFiltersAsync();
+            }
+
+            // If Exception Filters provide a result, it's a short-circuit due to an exception.
+            // We don't execute Result Filters around the result.
+            if (_exceptionContext?.Result != null)
+            {
+                // This means that exception filters returned a result to 'handle' an error.
+                // We're not interested in seeing the exception details since it was handled.
+                await InvokeResultAsync(_exceptionContext.Result);
+            }
+            else if (_exceptionContext?.Exception != null)
+            {
+                // If we get here, this means that we have an unhandled exception.
+                // Exception filted didn't handle this, so rethrow.
+                if (_exceptionContext.ExceptionDispatchInfo == null)
+                {
+                    throw _exceptionContext.Exception;
+                }
+                else
+                {
+                    _exceptionContext.ExceptionDispatchInfo.Throw();
+                }
+            }
+            else
+            {
+                // We have a successful 'result' from the action or an Action Filter, so run
+                // Result Filters.
+                var result = _actionExecutedContext?.Result ?? _result ?? new EmptyResult();
+
+                // >> ResultFilters >> (Result)
+                if (_cursor.HasFilter<IResultFilter, IAsyncResultFilter>())
+                {
+                    await InvokeAllResultFiltersAsync(result);
+                }
+                else
+                {
+                    await InvokeResultAsync(result);
+                }
+            }
         }
 
         private async Task<ResourceExecutedContext> InvokeResourceFilterAsync()
@@ -426,15 +504,21 @@ namespace Microsoft.AspNet.Mvc.Controllers
                     {
                         // We have a successful 'result' from the action or an Action Filter, so run
                         // Result Filters.
-                        Debug.Assert(_actionExecutedContext != null);
-                        var result = _actionExecutedContext.Result;
+                        var result = _actionExecutedContext?.Result ?? _result ?? new EmptyResult();
 
                         // >> ResultFilters >> (Result)
-                        await InvokeAllResultFiltersAsync(result);
+                        if (_cursor.HasFilter<IResultFilter, IAsyncResultFilter>())
+                        {
+                            await InvokeAllResultFiltersAsync(result);
+                        }
+                        else
+                        {
+                            await InvokeResultAsync(result);
+                        }
 
                         _resourceExecutedContext = new ResourceExecutedContext(_resourceExecutingContext, _filters)
                         {
-                            Result = _resultExecutedContext.Result,
+                            Result = _resultExecutedContext?.Result ?? result,
                         };
                     }
                 }
@@ -456,6 +540,30 @@ namespace Microsoft.AspNet.Mvc.Controllers
             _cursor.Reset();
 
             return InvokeExceptionFilterAsync();
+        }
+
+        private async Task SkipExceptionFiltersAsync()
+        {
+            if (_cursor.HasFilter<IActionFilter, IAsyncActionFilter>())
+            {
+                await InvokeAllActionFiltersAsync();
+
+                if (_actionExecutedContext.Exception != null && !_actionExecutedContext.ExceptionHandled)
+                {
+                    if (_actionExecutedContext.ExceptionDispatchInfo == null)
+                    {
+                        throw _actionExecutedContext.Exception;
+                    }
+                    else
+                    {
+                        _actionExecutedContext.ExceptionDispatchInfo.Throw();
+                    }
+                }
+            }
+            else
+            {
+                await SkipActionFiltersAsync();
+            }
         }
 
         private async Task InvokeExceptionFilterAsync()
@@ -515,18 +623,26 @@ namespace Microsoft.AspNet.Mvc.Controllers
 
                 try
                 {
-                    await InvokeAllActionFiltersAsync();
-
-                    // Action filters might 'return' an unhandled exception instead of throwing
-                    Debug.Assert(_actionExecutedContext != null);
-                    if (_actionExecutedContext.Exception != null && !_actionExecutedContext.ExceptionHandled)
+                    if (_cursor.HasFilter<IActionFilter, IAsyncActionFilter>())
                     {
-                        _exceptionContext.Exception = _actionExecutedContext.Exception;
-                        if (_actionExecutedContext.ExceptionDispatchInfo != null)
+                        await InvokeAllActionFiltersAsync();
+
+                        // Action filters might 'return' an unhandled exception instead of throwing
+                        Debug.Assert(_actionExecutedContext != null);
+                        if (_actionExecutedContext.Exception != null && !_actionExecutedContext.ExceptionHandled)
                         {
-                            _exceptionContext.ExceptionDispatchInfo = _actionExecutedContext.ExceptionDispatchInfo;
+                            _exceptionContext.Exception = _actionExecutedContext.Exception;
+                            if (_actionExecutedContext.ExceptionDispatchInfo != null)
+                            {
+                                _exceptionContext.ExceptionDispatchInfo = _actionExecutedContext.ExceptionDispatchInfo;
+                            }
                         }
                     }
+                    else
+                    {
+                        await SkipActionFiltersAsync();
+                    }
+                    
                 }
                 catch (Exception exception)
                 {
@@ -550,6 +666,37 @@ namespace Microsoft.AspNet.Mvc.Controllers
                 Instance);
 
             await InvokeActionFilterAsync();
+        }
+
+        private async Task SkipActionFiltersAsync()
+        {
+            Instance = CreateInstance();
+
+            var arguments = await BindActionArgumentsAsync(ActionContext, ActionBindingContext);
+
+            // All action filters have run, execute the action method.
+            IActionResult result = null;
+
+            try
+            {
+                if (_telemetry.IsEnabled("Microsoft.AspNet.Mvc.BeforeActionMethod"))
+                {
+                    _telemetry.WriteTelemetry(
+                        "Microsoft.AspNet.Mvc.BeforeActionMethod",
+                        new { actionContext = ActionContext, arguments = arguments });
+                }
+
+                _result = await InvokeActionAsync(Instance, arguments);
+            }
+            finally
+            {
+                if (_telemetry.IsEnabled("Microsoft.AspNet.Mvc.AfterActionMethod"))
+                {
+                    _telemetry.WriteTelemetry(
+                        "Microsoft.AspNet.Mvc.AfterActionMethod",
+                        new { actionContext = ActionContext, result = result });
+                }
+            }
         }
 
         private async Task<ActionExecutedContext> InvokeActionFilterAsync()
@@ -633,7 +780,9 @@ namespace Microsoft.AspNet.Mvc.Controllers
                                 });
                         }
 
-                        result = await InvokeActionAsync(_actionExecutingContext);
+                        result = await InvokeActionAsync(
+                            _actionExecutingContext.Controller,
+                            _actionExecutingContext.ActionArguments);
                     }
                     finally
                     {
@@ -878,6 +1027,21 @@ namespace Microsoft.AspNet.Mvc.Controllers
                 }
 
                 return default(FilterCursorItem<TFilter, TFilterAsync>);
+            }
+
+            public bool HasFilter<TFilter, TFilterAsync>()
+                where TFilter : class
+                where TFilterAsync : class
+            {
+                for (var i = 0; i < _filters.Length; i++)
+                {
+                    if (_filters[i] as TFilter != null || _filters[i] as TFilterAsync != null)
+                    {
+                        return true;
+                    }
+                }
+
+                return false;
             }
         }
 

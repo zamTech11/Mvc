@@ -142,13 +142,15 @@ namespace Microsoft.AspNet.Mvc.Controllers
             _controllerFactory.ReleaseController(instance);
         }
 
-        protected override async Task<IActionResult> InvokeActionAsync(ActionExecutingContext actionExecutingContext)
+        protected override async Task<IActionResult> InvokeActionAsync(
+            object instance, 
+            IDictionary<string, object> arguments)
         {
             var actionMethodInfo = _descriptor.MethodInfo;
             var actionReturnValue = await ControllerActionExecutor.ExecuteAsync(
                 actionMethodInfo,
-                actionExecutingContext.Controller,
-                actionExecutingContext.ActionArguments);
+                instance,
+                arguments);
 
             var actionResult = CreateActionResult(
                 actionMethodInfo.ReturnType,
