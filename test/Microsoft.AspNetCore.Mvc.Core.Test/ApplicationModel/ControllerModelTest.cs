@@ -28,7 +28,7 @@ namespace Microsoft.AspNetCore.Mvc.ApplicationModels
             action.Controller = controller;
 
             var route = new AttributeRouteModel(new HttpGetAttribute("api/Products"));
-            controller.AttributeRoutes.Add(route);
+            controller.AttributeRouteModel = route;
 
             var apiExplorer = controller.ApiExplorer;
             controller.ApiExplorer.GroupName = "group";
@@ -39,7 +39,7 @@ namespace Microsoft.AspNetCore.Mvc.ApplicationModels
 
             // Assert
             Assert.NotSame(action, controller2.Actions[0]);
-            Assert.NotSame(route, controller2.AttributeRoutes[0]);
+            Assert.NotSame(route, controller2.AttributeRouteModel);
             Assert.NotSame(apiExplorer, controller2.ApiExplorer);
 
             Assert.NotSame(controller.ActionConstraints, controller2.ActionConstraints);

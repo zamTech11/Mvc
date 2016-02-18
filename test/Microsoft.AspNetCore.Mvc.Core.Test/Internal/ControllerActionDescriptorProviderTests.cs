@@ -416,13 +416,13 @@ namespace Microsoft.AspNetCore.Mvc.Internal
 
             var conventional = Assert.Single(model.Controllers,
                 c => c.ControllerName == "ConventionallyRouted");
-            Assert.Empty(conventional.AttributeRoutes);
+            Assert.Null(conventional.AttributeRouteModel);
             Assert.Single(conventional.Actions);
 
             var attributeRouted = Assert.Single(model.Controllers,
                 c => c.ControllerName == "AttributeRouted");
             Assert.Single(attributeRouted.Actions);
-            Assert.Single(attributeRouted.AttributeRoutes);
+            Assert.NotNull(attributeRouted.AttributeRouteModel);
 
             var empty = Assert.Single(model.Controllers,
                 c => c.ControllerName == "Empty");
@@ -486,8 +486,8 @@ namespace Microsoft.AspNetCore.Mvc.Internal
             // Assert
             var controller = Assert.Single(model.Controllers);
 
-            var attributeRouteModel = Assert.Single(controller.AttributeRoutes);
-            Assert.Equal("api/Token/[key]/[controller]", attributeRouteModel.Template);
+            Assert.NotNull(controller.AttributeRouteModel);
+            Assert.Equal("api/Token/[key]/[controller]", controller.AttributeRouteModel.Template);
 
             var action = Assert.Single(controller.Actions);
             Assert.Equal("stub/[action]", action.AttributeRouteModel.Template);

@@ -13,7 +13,7 @@ using Microsoft.AspNetCore.Mvc.Routing;
 namespace Microsoft.AspNetCore.Mvc.ApplicationModels
 {
     [DebuggerDisplay("Name={ControllerName}, Type={ControllerType.Name}," +
-                     " Routes: {AttributeRoutes.Count}, Filters: {Filters.Count}")]
+                     " Route: {AttributeRouteModel?.Template}, Filters: {Filters.Count}")]
     public class ControllerModel : ICommonModel, IFilterModel, IApiExplorerModel
     {
         public ControllerModel(
@@ -35,7 +35,6 @@ namespace Microsoft.AspNetCore.Mvc.ApplicationModels
             Actions = new List<ActionModel>();
             ApiExplorer = new ApiExplorerModel();
             Attributes = new List<object>(attributes);
-            AttributeRoutes = new List<AttributeRouteModel>();
             ActionConstraints = new List<IActionConstraintMetadata>();
             Filters = new List<IFilterMetadata>();
             RouteConstraints = new List<IRouteConstraintProvider>();
@@ -66,8 +65,7 @@ namespace Microsoft.AspNetCore.Mvc.ApplicationModels
             // Make a deep copy of other 'model' types.
             Actions = new List<ActionModel>(other.Actions.Select(a => new ActionModel(a)));
             ApiExplorer = new ApiExplorerModel(other.ApiExplorer);
-            AttributeRoutes = new List<AttributeRouteModel>(
-                other.AttributeRoutes.Select(a => new AttributeRouteModel(a)));
+            AttributeRouteModel = new AttributeRouteModel(other.AttributeRouteModel);
             ControllerProperties =
                 new List<PropertyModel>(other.ControllerProperties.Select(p => new PropertyModel(p)));
         }
@@ -82,7 +80,7 @@ namespace Microsoft.AspNetCore.Mvc.ApplicationModels
         /// <remarks>
         /// <see cref="ControllerModel.ApiExplorer"/> allows configuration of settings for ApiExplorer
         /// which apply to all actions in the controller unless overridden by <see cref="ActionModel.ApiExplorer"/>.
-        /// 
+        ///
         /// Settings applied by <see cref="ControllerModel.ApiExplorer"/> override settings from
         /// <see cref="ApplicationModel.ApiExplorer"/>.
         /// </remarks>
@@ -90,7 +88,7 @@ namespace Microsoft.AspNetCore.Mvc.ApplicationModels
 
         public ApplicationModel Application { get; set; }
 
-        public IList<AttributeRouteModel> AttributeRoutes { get; private set; }
+        public AttributeRouteModel AttributeRouteModel { get; set; }
 
         public IReadOnlyList<object> Attributes { get; }
 

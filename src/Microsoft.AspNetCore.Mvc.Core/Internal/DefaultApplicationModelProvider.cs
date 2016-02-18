@@ -9,7 +9,6 @@ using Microsoft.AspNetCore.Mvc.ActionConstraints;
 using Microsoft.AspNetCore.Mvc.ApiExplorer;
 using Microsoft.AspNetCore.Mvc.ApplicationModels;
 using Microsoft.AspNetCore.Mvc.Filters;
-using Microsoft.AspNetCore.Mvc.Infrastructure;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.AspNetCore.Mvc.Routing;
 using Microsoft.Extensions.Internal;
@@ -51,43 +50,47 @@ namespace Microsoft.AspNetCore.Mvc.Internal
             foreach (var controllerType in context.ControllerTypes)
             {
                 var controllerModels = BuildControllerModels(controllerType);
-                if (controllerModels != null)
+                if (controllerModels == null)
                 {
-                    foreach (var controllerModel in controllerModels)
-                    {
-                        context.Result.Controllers.Add(controllerModel);
-                        controllerModel.Application = context.Result;
+                    continue;
+                }
 
-                        foreach (var propertyHelper in PropertyHelper.GetProperties(controllerType.AsType()))
+                foreach (var controllerModel in controllerModels)
+                {
+                    context.Result.Controllers.Add(controllerModel);
+                    controllerModel.Application = context.Result;
+
+                    foreach (var propertyHelper in PropertyHelper.GetProperties(controllerType.AsType()))
+                    {
+                        var propertyInfo = propertyHelper.Property;
+                        var propertyModel = CreatePropertyModel(propertyInfo);
+                        if (propertyModel != null)
                         {
-                            var propertyInfo = propertyHelper.Property;
-                            var propertyModel = CreatePropertyModel(propertyInfo);
-                            if (propertyModel != null)
-                            {
-                                propertyModel.Controller = controllerModel;
-                                controllerModel.ControllerProperties.Add(propertyModel);
-                            }
+                            propertyModel.Controller = controllerModel;
+                            controllerModel.ControllerProperties.Add(propertyModel);
+                        }
+                    }
+
+                    foreach (var methodInfo in controllerType.AsType().GetMethods())
+                    {
+                        var actionModels = BuildActionModels(controllerType, methodInfo);
+                        if (actionModels == null)
+                        {
+                            continue;
                         }
 
-                        foreach (var methodInfo in controllerType.AsType().GetMethods())
+                        foreach (var actionModel in actionModels)
                         {
-                            var actionModels = BuildActionModels(controllerType, methodInfo);
-                            if (actionModels != null)
-                            {
-                                foreach (var actionModel in actionModels)
-                                {
-                                    actionModel.Controller = controllerModel;
-                                    controllerModel.Actions.Add(actionModel);
+                            actionModel.Controller = controllerModel;
+                            controllerModel.Actions.Add(actionModel);
 
-                                    foreach (var parameterInfo in actionModel.ActionMethod.GetParameters())
-                                    {
-                                        var parameterModel = CreateParameterModel(parameterInfo);
-                                        if (parameterModel != null)
-                                        {
-                                            parameterModel.Action = actionModel;
-                                            actionModel.Parameters.Add(parameterModel);
-                                        }
-                                    }
+                            foreach (var parameterInfo in actionModel.ActionMethod.GetParameters())
+                            {
+                                var parameterModel = CreateParameterModel(parameterInfo);
+                                if (parameterModel != null)
+                                {
+                                    parameterModel.Action = actionModel;
+                                    actionModel.Parameters.Add(parameterModel);
                                 }
                             }
                         }
@@ -117,8 +120,7 @@ namespace Microsoft.AspNetCore.Mvc.Internal
                 throw new ArgumentNullException(nameof(typeInfo));
             }
 
-            var controllerModel = CreateControllerModel(typeInfo);
-            yield return controllerModel;
+            return CreateControllerModels(typeInfo);
         }
 
         /// <summary>
@@ -126,7 +128,7 @@ namespace Microsoft.AspNetCore.Mvc.Internal
         /// </summary>
         /// <param name="typeInfo">The <see cref="TypeInfo"/>.</param>
         /// <returns>A <see cref="ControllerModel"/> for the given <see cref="TypeInfo"/>.</returns>
-        protected virtual ControllerModel CreateControllerModel(TypeInfo typeInfo)
+        protected virtual IList<ControllerModel> CreateControllerModels(TypeInfo typeInfo)
         {
             if (typeInfo == null)
             {
@@ -181,10 +183,36 @@ namespace Microsoft.AspNetCore.Mvc.Internal
 
             attributes = filteredAttributes.ToArray();
 
-            var controllerModel = new ControllerModel(typeInfo, attributes);
-            AddRange(
-                controllerModel.AttributeRoutes, routeAttributes.Select(a => new AttributeRouteModel(a)));
+            var controllerModels = new List<ControllerModel>();
+            if (routeAttributes.Length == 0)
+            {
+                controllerModels.Add(CreateControllerModel(typeInfo, attributes, routeAttribute: null));
+            }
+            else
+            {
+                //
+                // Controllers with multiple [Route] attributes (or user defined implementation of
+                // IRouteTemplateProvider) will generate one action descriptor per IRouteTemplateProvider
+                // instance.
+                // Actions with multiple [Http*] attributes or other (IRouteTemplateProvider implementations
+                // have already been identified as different actions during action discovery.
+                for (var i = 0; i < routeAttributes.Length; i++)
+                {
+                    controllerModels.Add(CreateControllerModel(typeInfo, attributes, routeAttributes[i]));
+                }
+            }
 
+            return controllerModels;
+        }
+
+        private ControllerModel CreateControllerModel(
+            TypeInfo typeInfo,
+            object[] attributes,
+            IRouteTemplateProvider routeAttribute)
+        {
+            var controllerModel = new ControllerModel(typeInfo, attributes);
+            controllerModel.AttributeRouteModel =
+                (routeAttribute == null) ? null : new AttributeRouteModel(routeAttribute);
             controllerModel.ControllerName =
                 typeInfo.Name.EndsWith("Controller", StringComparison.OrdinalIgnoreCase) ?
                     typeInfo.Name.Substring(0, typeInfo.Name.Length - "Controller".Length) :
@@ -248,9 +276,8 @@ namespace Microsoft.AspNetCore.Mvc.Internal
             return propertyModel;
         }
 
-
         /// <summary>
-        /// Creates the <see cref="ControllerModel"/> instances for the given action <see cref="MethodInfo"/>.
+        /// Creates the <see cref="ActionModel"/> instances for the given action <see cref="MethodInfo"/>.
         /// </summary>
         /// <param name="typeInfo">The controller <see cref="TypeInfo"/>.</param>
         /// <param name="methodInfo">The action <see cref="MethodInfo"/>.</param>

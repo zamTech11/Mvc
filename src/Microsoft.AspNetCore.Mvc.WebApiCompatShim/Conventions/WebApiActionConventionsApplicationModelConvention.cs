@@ -64,7 +64,7 @@ namespace Microsoft.AspNetCore.Mvc.WebApiCompatShim
 
         private bool IsActionAttributeRouted(ActionModel action)
         {
-            if (action.Controller.AttributeRoutes.Count > 0)
+            if (action.Controller.AttributeRouteModel != null)
             {
                 return true;
             }

@@ -26,9 +26,10 @@ namespace Microsoft.AspNetCore.Mvc.Internal
             var typeInfo = typeof(StoreController).GetTypeInfo();
 
             // Act
-            var model = builder.CreateControllerModel(typeInfo);
+            var models = builder.BuildControllerModels(typeInfo);
 
             // Assert
+            var model = Assert.Single(models);
             var filter = Assert.Single(model.Filters);
             Assert.IsType<ControllerActionFilter>(filter);
         }
@@ -65,9 +66,10 @@ namespace Microsoft.AspNetCore.Mvc.Internal
             var typeInfo = typeof(NoFiltersController).GetTypeInfo();
 
             // Act
-            var model = builder.CreateControllerModel(typeInfo);
+            var models = builder.BuildControllerModels(typeInfo);
 
             // Assert
+            var model = Assert.Single(models);
             var filter = Assert.Single(model.Filters);
             Assert.IsType<MyFilterAttribute>(filter);
         }
@@ -80,9 +82,10 @@ namespace Microsoft.AspNetCore.Mvc.Internal
             var typeInfo = typeof(SomeFiltersController).GetTypeInfo();
 
             // Act
-            var model = builder.CreateControllerModel(typeInfo);
+            var models = builder.BuildControllerModels(typeInfo);
 
             // Assert
+            var model = Assert.Single(models);
             Assert.Single(model.Filters, f => f is ControllerActionFilter);
             Assert.Single(model.Filters, f => f is ControllerResultFilter);
         }
@@ -95,9 +98,10 @@ namespace Microsoft.AspNetCore.Mvc.Internal
             var typeInfo = typeof(UnsupportedFiltersController).GetTypeInfo();
 
             // Act
-            var model = builder.CreateControllerModel(typeInfo);
+            var models = builder.BuildControllerModels(typeInfo);
 
             // Assert
+            var model = Assert.Single(models);
             Assert.Empty(model.Filters);
         }
 
@@ -109,17 +113,21 @@ namespace Microsoft.AspNetCore.Mvc.Internal
             var typeInfo = typeof(DerivedClassInheritingRoutesController).GetTypeInfo();
 
             // Act
-            var model = builder.CreateControllerModel(typeInfo);
+            var models = builder.BuildControllerModels(typeInfo)?.ToArray();
 
             // Assert
-            Assert.Equal(2, model.AttributeRoutes.Count);
+            Assert.NotNull(models);
+            Assert.Equal(2, models.Length);
+            var model = models[0];
             Assert.Equal(2, model.Attributes.Count);
 
-            var route = Assert.Single(model.AttributeRoutes, r => r.Template == "A");
-            Assert.Contains(route.Attribute, model.Attributes);
+            Assert.NotNull(model.AttributeRouteModel);
+            Assert.Equal("A", model.AttributeRouteModel.Template);
+            Assert.Contains(model.AttributeRouteModel.Attribute, model.Attributes);
 
-            route = Assert.Single(model.AttributeRoutes, r => r.Template == "B");
-            Assert.Contains(route.Attribute, model.Attributes);
+            model = models[1];
+            Assert.Equal("B", model.AttributeRouteModel.Template);
+            Assert.Contains(model.AttributeRouteModel.Attribute, model.Attributes);
         }
 
         [Fact]
@@ -130,17 +138,21 @@ namespace Microsoft.AspNetCore.Mvc.Internal
             var typeInfo = typeof(DerivedClassHidingRoutesController).GetTypeInfo();
 
             // Act
-            var model = builder.CreateControllerModel(typeInfo);
+            var models = builder.BuildControllerModels(typeInfo)?.ToArray();
 
             // Assert
-            Assert.Equal(2, model.AttributeRoutes.Count);
+            Assert.NotNull(models);
+            Assert.Equal(2, models.Length);
+
+            var model = models[0];
             Assert.Equal(2, model.Attributes.Count);
 
-            var route = Assert.Single(model.AttributeRoutes, r => r.Template == "C");
-            Assert.Contains(route.Attribute, model.Attributes);
+            Assert.Equal("C", model.AttributeRouteModel.Template);
+            Assert.Contains(model.AttributeRouteModel.Attribute, model.Attributes);
 
-            route = Assert.Single(model.AttributeRoutes, r => r.Template == "D");
-            Assert.Contains(route.Attribute, model.Attributes);
+            model = models[1];
+            Assert.Equal("D", model.AttributeRouteModel.Template);
+            Assert.Contains(model.AttributeRouteModel.Attribute, model.Attributes);
         }
 
         [Theory]
@@ -1226,11 +1238,6 @@ namespace Microsoft.AspNetCore.Mvc.Internal
             public new IEnumerable<ControllerModel> BuildControllerModels(TypeInfo typeInfo)
             {
                 return base.BuildControllerModels(typeInfo);
-            }
-
-            public new ControllerModel CreateControllerModel(TypeInfo typeInfo)
-            {
-                return base.CreateControllerModel(typeInfo);
             }
 
             public new PropertyModel CreatePropertyModel(PropertyInfo propertyInfo)
