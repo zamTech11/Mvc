@@ -65,6 +65,7 @@ namespace Microsoft.AspNetCore.Mvc.ApplicationModels
             controller.Application = new ApplicationModel();
             controller.ControllerName = "cool";
             controller.Filters.Add(new MyFilterAttribute());
+            controller.AttributeRouteModel = new AttributeRouteModel();
             controller.RouteConstraints.Add(new MyRouteConstraintAttribute());
             controller.Properties.Add(new KeyValuePair<object, object>("test key", "test value"));
             controller.ControllerProperties.Add(
@@ -77,7 +78,7 @@ namespace Microsoft.AspNetCore.Mvc.ApplicationModels
             foreach (var property in typeof(ControllerModel).GetProperties())
             {
                 if (property.Name.Equals("Actions") ||
-                    property.Name.Equals("AttributeRoutes") ||
+                    property.Name.Equals("AttributeRouteModel") ||
                     property.Name.Equals("ApiExplorer") ||
                     property.Name.Equals("ControllerProperties"))
                 {
