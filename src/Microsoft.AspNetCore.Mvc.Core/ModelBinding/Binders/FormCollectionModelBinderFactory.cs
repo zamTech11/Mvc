@@ -7,53 +7,48 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Mvc.Internal;
 using Microsoft.AspNetCore.Mvc.ModelBinding.Validation;
 using Microsoft.Extensions.Primitives;
 
 namespace Microsoft.AspNetCore.Mvc.ModelBinding
 {
-    /// <summary>
-    /// <see cref="IModelBinder"/> implementation to bind form values to <see cref="IFormCollection"/>.
-    /// </summary>
-    public class FormCollectionModelBinder : IModelBinder
+    public class FormCollectionModelBinderFactory : IModelBinderFactory
     {
-        /// <inheritdoc />
-        public Task BindModelAsync(ModelBindingContext bindingContext)
+        public IModelBinder Create(ModelBroFactoryContext context)
         {
-            if (bindingContext == null)
+            if (context.ModelType == typeof(IFormCollection))
             {
-                throw new ArgumentNullException(nameof(bindingContext));
+                return new Binder();
             }
 
-            // This method is optimized to use cached tasks when possible and avoid allocating
-            // using Task.FromResult. If you need to make changes of this nature, profile
-            // allocations afterwards and look for Task<ModelBindingResult>.
-
-            if (bindingContext.ModelType != typeof(IFormCollection))
-            {
-                return TaskCache.CompletedTask;
-            }
-
-            return BindModelCoreAsync(bindingContext);
+            return null;
         }
 
-        private async Task BindModelCoreAsync(ModelBindingContext bindingContext)
+        private class Binder : IModelBinder
         {
-            object model;
-            var request = bindingContext.OperationBindingContext.HttpContext.Request;
-            if (request.HasFormContentType)
+            /// <inheritdoc />
+            public async Task BindModelAsync(ModelBroContext bindingContext)
             {
-                var form = await request.ReadFormAsync();
-                model = form;
-            }
-            else
-            {
-                model = new EmptyFormCollection();
-            }
+                if (bindingContext == null)
+                {
+                    throw new ArgumentNullException(nameof(bindingContext));
+                }
 
-            bindingContext.ValidationState.Add(model, new ValidationStateEntry() { SuppressValidation = true });
-            bindingContext.Result = ModelBindingResult.Success(bindingContext.ModelName, model);
+                object model;
+                var request = bindingContext.HttpContext.Request;
+                if (request.HasFormContentType)
+                {
+                    var form = await request.ReadFormAsync();
+                    model = form;
+                }
+                else
+                {
+                    model = new EmptyFormCollection();
+                }
+
+                bindingContext.ValidationState.Add(model, new ValidationStateEntry() { SuppressValidation = true });
+                bindingContext.Result = ModelBindingResult.Success(bindingContext.ModelName, model);
+            }
         }
 
         private class EmptyFormCollection : IFormCollection

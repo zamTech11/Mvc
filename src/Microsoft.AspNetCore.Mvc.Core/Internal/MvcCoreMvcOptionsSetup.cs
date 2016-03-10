@@ -50,13 +50,17 @@ namespace Microsoft.AspNetCore.Mvc.Internal
             //options.ModelBinders.Add(new FormCollectionModelBinder());
             //options.ModelBinders.Add(new GenericModelBinder());
             //options.ModelBinders.Add(new MutableObjectModelBinder());
-            options.ModelBinders.Add(new HackedModelBinder());
 
-            options.ModelBroFactory.Add(new BinderTypeModelBroFactory());
-            options.ModelBroFactory.Add(new ServicesModelBroFactory());
-            options.ModelBroFactory.Add(new BodyModelBroFactory(readerFactory));
-            options.ModelBroFactory.Add(new HeaderModelBroFactory());
-            options.ModelBroFactory.Add(new SimpleTypeModelBroFactory());
+
+            options.ModelBroFactory.Add(new BinderTypeModelBinderFactory());
+            options.ModelBroFactory.Add(new ServicesModelBinderFactory());
+            options.ModelBroFactory.Add(new BodyModelBinderFactory(readerFactory));
+            options.ModelBroFactory.Add(new HeaderModelBinderFactory());
+            options.ModelBroFactory.Add(new SimpleTypeModelBinderFactory());
+            options.ModelBroFactory.Add(new CancellationTokenModelBinderFactory());
+            options.ModelBroFactory.Add(new ByteArrayModelBinderFactory());
+            options.ModelBroFactory.Add(new FormFileModelBinderFactory());
+            options.ModelBroFactory.Add(new FormCollectionModelBinderFactory());
 
             // Set up filters
             options.Filters.Add(new UnsupportedContentTypeFilter());

@@ -9,10 +9,12 @@ namespace Microsoft.AspNetCore.Mvc.ModelBinding
     {
         public BindingInfo BindingInfo { get; set; }
 
-        public Func<ModelMetadata, IModelBro> CreateBro { get; set; }
+        public Func<ModelBroMetadata, IModelBinder> CreateBro { get; set; }
 
         public bool IsTopLevelObject { get; set; }
 
-        public ModelMetadata ModelMetadata { get; set; }
+        public ModelBroMetadata Metadata { get; set; }
+
+        public Type ModelType { get; set; }
     }
 }

@@ -5,6 +5,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using Microsoft.AspNetCore.Mvc.Abstractions;
+using Microsoft.AspNetCore.Mvc.ModelBinding.Metadata;
 
 namespace Microsoft.AspNetCore.Mvc.ModelBinding
 {
@@ -225,6 +226,33 @@ namespace Microsoft.AspNetCore.Mvc.ModelBinding
         }
 
         /// <summary>
+        /// Adds the specified <paramref name="exception"/> to the <see cref="ModelStateEntry.Errors"/> instance
+        /// that is associated with the specified <paramref name="key"/>.
+        /// </summary>
+        /// <param name="key">The key of the <see cref="ModelStateEntry"/> to add errors to.</param>
+        /// <param name="exception">The <see cref="Exception"/> to add.</param>
+        /// <param name="metadata">The <see cref="ModelMetadata"/> associated with the model.</param>
+        public void AddModelError(string key, Exception exception, ModelBroMetadata metadata)
+        {
+            if (key == null)
+            {
+                throw new ArgumentNullException(nameof(key));
+            }
+
+            if (exception == null)
+            {
+                throw new ArgumentNullException(nameof(exception));
+            }
+
+            if (metadata == null)
+            {
+                throw new ArgumentNullException(nameof(metadata));
+            }
+
+            TryAddModelError(key, exception, metadata);
+        }
+
+        /// <summary>
         /// Attempts to add the specified <paramref name="exception"/> to the <see cref="ModelStateEntry.Errors"/>
         /// instance that is associated with the specified <paramref name="key"/>. If the maximum number of allowed
         /// errors has already been recorded, records a <see cref="TooManyModelErrorsException"/> exception instead.
@@ -279,6 +307,74 @@ namespace Microsoft.AspNetCore.Mvc.ModelBinding
                 }
 
                 return TryAddModelError(key, errorMessage);
+            }
+
+            ErrorCount++;
+            AddModelErrorCore(key, exception);
+            return true;
+        }
+
+        /// <summary>
+        /// Attempts to add the specified <paramref name="exception"/> to the <see cref="ModelStateEntry.Errors"/>
+        /// instance that is associated with the specified <paramref name="key"/>. If the maximum number of allowed
+        /// errors has already been recorded, records a <see cref="TooManyModelErrorsException"/> exception instead.
+        /// </summary>
+        /// <param name="key">The key of the <see cref="ModelStateEntry"/> to add errors to.</param>
+        /// <param name="exception">The <see cref="Exception"/> to add.</param>
+        /// <param name="metadata">The <see cref="ModelMetadata"/> associated with the model.</param>
+        /// <returns>
+        /// <c>True</c> if the given error was added, <c>false</c> if the error was ignored.
+        /// See <see cref="MaxAllowedErrors"/>.
+        /// </returns>
+        public bool TryAddModelError(string key, Exception exception, ModelBroMetadata metadata)
+        {
+            if (key == null)
+            {
+                throw new ArgumentNullException(nameof(key));
+            }
+
+            if (exception == null)
+            {
+                throw new ArgumentNullException(nameof(exception));
+            }
+
+            if (metadata == null)
+            {
+                throw new ArgumentNullException(nameof(metadata));
+            }
+
+            if (ErrorCount >= MaxAllowedErrors - 1)
+            {
+                EnsureMaxErrorsReachedRecorded();
+                return false;
+            }
+
+            if (exception is FormatException || exception is OverflowException)
+            {
+                // Convert FormatExceptions and OverflowExceptions to Invalid value messages.
+                ModelStateEntry entry;
+                TryGetValue(key, out entry);
+
+                var messageProvider = metadata.Get<IModelBindingMessageProvider>();
+                var displayMetadata = metadata.Get<IDisplayMetadata>();
+
+                var name = displayMetadata?.GetDisplayName();
+                if (name != null)
+                {
+                    string errorMessage;
+                    if (entry == null)
+                    {
+                        errorMessage = messageProvider.UnknownValueIsInvalidAccessor(name);
+                    }
+                    else
+                    {
+                        errorMessage = messageProvider.AttemptedValueIsInvalidAccessor(
+                            entry.AttemptedValue,
+                            name);
+                    }
+
+                    return TryAddModelError(key, errorMessage);
+                }
             }
 
             ErrorCount++;

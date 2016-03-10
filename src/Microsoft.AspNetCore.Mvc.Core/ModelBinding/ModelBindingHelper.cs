@@ -821,7 +821,7 @@ namespace Microsoft.AspNetCore.Mvc.ModelBinding
         /// </remarks>
         public static ICollection<T> GetCompatibleCollection<T>(ModelBindingContext bindingContext)
         {
-            return GetCompatibleCollection<T>(bindingContext, capacity: null);
+            return GetCompatibleCollection<T>(bindingContext.Model, bindingContext.ModelType, capacity: null);
         }
 
         /// <summary>
@@ -842,13 +842,21 @@ namespace Microsoft.AspNetCore.Mvc.ModelBinding
         /// </remarks>
         public static ICollection<T> GetCompatibleCollection<T>(ModelBindingContext bindingContext, int capacity)
         {
-            return GetCompatibleCollection<T>(bindingContext, (int?)capacity);
+            return GetCompatibleCollection<T>(bindingContext.Model, bindingContext.ModelType, (int?)capacity);
         }
 
-        private static ICollection<T> GetCompatibleCollection<T>(ModelBindingContext bindingContext, int? capacity)
+        public static ICollection<T> GetCompatibleCollection<T>(object model, Type modelType)
         {
-            var model = bindingContext.Model;
-            var modelType = bindingContext.ModelType;
+            return GetCompatibleCollection<T>(model, modelType, capacity: null);
+        }
+
+        public static ICollection<T> GetCompatibleCollection<T>(object model, Type modelType, int capacity)
+        {
+            return GetCompatibleCollection<T>(model, modelType, (int?)capacity);
+        }
+
+        private static ICollection<T> GetCompatibleCollection<T>(object model, Type modelType, int? capacity)
+        {
 
             // There's a limited set of collection types we can create here.
             //

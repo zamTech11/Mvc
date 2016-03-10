@@ -21,14 +21,12 @@ namespace Microsoft.AspNetCore.Mvc.ModelBinding
     public class CollectionModelBinder<TElement> : ICollectionModelBinder
     {
         /// <inheritdoc />
-        public virtual async Task BindModelAsync(ModelBindingContext bindingContext)
+        public virtual async Task BindModelAsync(ModelBroContext bindingContext)
         {
             if (bindingContext == null)
             {
                 throw new ArgumentNullException(nameof(bindingContext));
             }
-
-            ModelBindingHelper.ValidateBindingContext(bindingContext);
 
             var model = bindingContext.Model;
             if (!bindingContext.ValueProvider.ContainsPrefix(bindingContext.ModelName))
@@ -180,7 +178,7 @@ namespace Microsoft.AspNetCore.Mvc.ModelBinding
         }
 
         // Used when the ValueProvider contains the collection to be bound as multiple elements, e.g. foo[0], foo[1].
-        private Task<CollectionResult> BindComplexCollection(ModelBindingContext bindingContext)
+        private Task<CollectionResult> BindComplexCollection(ModelBroContext bindingContext)
         {
             var indexPropertyName = ModelNames.CreatePropertyModelName(bindingContext.ModelName, "index");
             var valueProviderResultIndex = bindingContext.ValueProvider.GetValue(indexPropertyName);
@@ -191,7 +189,7 @@ namespace Microsoft.AspNetCore.Mvc.ModelBinding
 
         // Internal for testing.
         internal async Task<CollectionResult> BindComplexCollectionFromIndexes(
-            ModelBindingContext bindingContext,
+            ModelBroContext bindingContext,
             IEnumerable<string> indexNames)
         {
             bool indexNamesIsFinite;

@@ -1,14 +1,15 @@
 ﻿using System;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc.Internal;
+using Microsoft.AspNetCore.Mvc.ModelBinding.Metadata;
 
 namespace Microsoft.AspNetCore.Mvc.ModelBinding
 {
-    public class SimpleTypeModelBroFactory : IModelBroFactory
+    public class SimpleTypeModelBinderFactory : IModelBinderFactory
     {
-        public IModelBro Create(ModelBroFactoryContext context)
+        public IModelBinder Create(ModelBroFactoryContext context)
         {
-            if (!context.ModelMetadata.IsComplexType)
+            if (!context.Metadata.Get<ITypeMetadata>().IsComplexType)
             {
                 return new Binder();
             }
@@ -16,9 +17,9 @@ namespace Microsoft.AspNetCore.Mvc.ModelBinding
             return null;
         }
 
-        private class Binder : IModelBro
+        private class Binder : IModelBinder
         {
-            public Task BindAsync(ModelBroContext bindingContext)
+            public Task BindModelAsync(ModelBroContext bindingContext)
             {
                 if (bindingContext == null)
                 {
@@ -36,12 +37,12 @@ namespace Microsoft.AspNetCore.Mvc.ModelBinding
 
                 try
                 {
-                    var model = valueProviderResult.ConvertTo(bindingContext.ModelMetadata.ModelType);
+                    var model = valueProviderResult.ConvertTo(bindingContext.ModelType);
 
-                    if (bindingContext.ModelMetadata.ModelType == typeof(string))
+                    if (bindingContext.ModelType == typeof(string))
                     {
                         var modelAsString = model as string;
-                        if (bindingContext.ModelMetadata.ConvertEmptyStringToNull &&
+                        if (bindingContext.Metadata.Get<IDisplayMetadata>()?.ConvertEmptyStringToNull == true &&
                             string.IsNullOrEmpty(modelAsString))
                         {
                             model = null;
@@ -51,11 +52,12 @@ namespace Microsoft.AspNetCore.Mvc.ModelBinding
                     // When converting newModel a null value may indicate a failed conversion for an otherwise required
                     // model (can't set a ValueType to null). This detects if a null model value is acceptable given the
                     // current bindingContext. If not, an error is logged.
-                    if (model == null && !bindingContext.ModelMetadata.IsReferenceOrNullableType)
+                    if (model == null && bindingContext.Metadata.Get<ITypeMetadata>().IsReferenceOrNullableType)
                     {
+                        var messageProvider = bindingContext.Metadata.Get<IModelBindingMessageProvider>();
                         bindingContext.ModelState.TryAddModelError(
                             bindingContext.ModelName,
-                            bindingContext.ModelMetadata.ModelBindingMessageProvider.ValueMustNotBeNullAccessor(
+                            messageProvider.ValueMustNotBeNullAccessor(
                                 valueProviderResult.ToString()));
 
                         bindingContext.Result = ModelBindingResult.Failed(bindingContext.ModelName);
@@ -72,7 +74,7 @@ namespace Microsoft.AspNetCore.Mvc.ModelBinding
                     bindingContext.ModelState.TryAddModelError(
                         bindingContext.ModelName,
                         exception,
-                        bindingContext.ModelMetadata);
+                        bindingContext.Metadata);
 
                     // Were able to find a converter for the type but conversion failed.
                     // Tell the model binding system to skip other model binders.

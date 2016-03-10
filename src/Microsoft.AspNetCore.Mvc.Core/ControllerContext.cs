@@ -45,6 +45,8 @@ namespace Microsoft.AspNetCore.Mvc
                     typeof(ControllerActionDescriptor)),
                     nameof(context));
             }
+
+            Arguments = new Dictionary<string, object>();
         }
 
         /// <summary>
@@ -55,6 +57,8 @@ namespace Microsoft.AspNetCore.Mvc
             get { return (ControllerActionDescriptor)base.ActionDescriptor; }
             set { base.ActionDescriptor = value; }
         }
+
+        public virtual IDictionary<string, object> Arguments { get; set; }
 
         /// <summary>
         /// Gets or sets the list of <see cref="IInputFormatter"/> instances for the current request.

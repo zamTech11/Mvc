@@ -12,29 +12,6 @@ namespace Microsoft.AspNetCore.Mvc.Infrastructure
 {
     public class ActionContextAccessor : IActionContextAccessor
     {
-#if NET451
-        private static string Key = typeof(ActionContext).FullName;
-
-        public ActionContext ActionContext
-        {
-            get
-            {
-                var handle = CallContext.LogicalGetData(Key) as ObjectHandle;
-                return handle != null ? (ActionContext)handle.Unwrap() : null;
-            }
-            set
-            {
-                CallContext.LogicalSetData(Key, new ObjectHandle(value));
-            }
-        }
-#else
-        private readonly AsyncLocal<ActionContext> _storage = new AsyncLocal<ActionContext>();
-
-        public ActionContext ActionContext
-        {
-            get { return _storage.Value; }
-            set { _storage.Value = value; }
-        }
-#endif
+        public ActionContext ActionContext { get; set; }
     }
 }

@@ -97,7 +97,7 @@ namespace Microsoft.AspNetCore.Mvc.Formatters
                     }
                 }
 
-                return InputFormatterResult.SuccessAsync(deserializedObject);
+                return Task.FromResult(new InputFormatterResult() { Model = deserializedObject, });
             }
         }
 

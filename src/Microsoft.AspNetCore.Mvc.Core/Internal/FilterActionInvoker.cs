@@ -21,7 +21,7 @@ namespace Microsoft.AspNetCore.Mvc.Internal
         private readonly FilterCache _filterCache;
         private readonly IReadOnlyList<IInputFormatter> _inputFormatters;
         private readonly IReadOnlyList<IModelBinder> _modelBinders;
-        private readonly IReadOnlyList<IModelValidatorProvider> _modelValidatorProviders;
+        private readonly IReadOnlyList<IModelValidatorProvider> _validatorProviders;
         private readonly IReadOnlyList<IValueProviderFactory> _valueProviderFactories;
         private readonly DiagnosticSource _diagnosticSource;
         private readonly int _maxModelValidationErrors;
@@ -98,7 +98,7 @@ namespace Microsoft.AspNetCore.Mvc.Internal
             _filterCache = filterCache;
             _inputFormatters = inputFormatters;
             _modelBinders = modelBinders;
-            _modelValidatorProviders = modelValidatorProviders;
+            _validatorProviders = modelValidatorProviders;
             _valueProviderFactories = valueProviderFactories;
             Logger = logger;
             _diagnosticSource = diagnosticSource;
@@ -253,13 +253,6 @@ namespace Microsoft.AspNetCore.Mvc.Internal
             _cursor.Reset();
 
             var context = new ResourceExecutingContext(Context, _filters);
-
-            context.InputFormatters = new FormatterCollection<IInputFormatter>(
-                new CopyOnWriteList<IInputFormatter>(_inputFormatters));
-            context.ModelBinders = new CopyOnWriteList<IModelBinder>(_modelBinders);
-            context.ValidatorProviders = new CopyOnWriteList<IModelValidatorProvider>(_modelValidatorProviders);
-            context.ValueProviderFactories = new CopyOnWriteList<IValueProviderFactory>(_valueProviderFactories);
-
             _resourceExecutingContext = context;
             return InvokeResourceFilterAsync();
         }
@@ -359,16 +352,16 @@ namespace Microsoft.AspNetCore.Mvc.Internal
                 {
                     // We've reached the end of resource filters, so move to setting up state to invoke model
                     // binding.
-                    Context.InputFormatters = _resourceExecutingContext.InputFormatters;
-                    Context.ModelBinders = _resourceExecutingContext.ModelBinders;
-                    Context.ValidatorProviders = _resourceExecutingContext.ValidatorProviders;
+                    Context.InputFormatters = new FormatterCollection<IInputFormatter>(new CopyOnWriteList<IInputFormatter>(_inputFormatters));
+                    Context.ModelBinders = new CopyOnWriteList<IModelBinder>(_modelBinders);
+                    Context.ValidatorProviders = new CopyOnWriteList<IModelValidatorProvider>(_validatorProviders);
 
                     var valueProviders = new List<IValueProvider>();
                     var factoryContext = new ValueProviderFactoryContext(Context);
 
-                    for (var i = 0; i < _resourceExecutingContext.ValueProviderFactories.Count; i++)
+                    for (var i = 0; i < _valueProviderFactories.Count; i++)
                     {
-                        var factory = _resourceExecutingContext.ValueProviderFactories[i];
+                        var factory = _valueProviderFactories[i];
                         await factory.CreateValueProviderAsync(factoryContext);
                     }
                     Context.ValueProviders = factoryContext.ValueProviders;

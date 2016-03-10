@@ -102,12 +102,6 @@ namespace Microsoft.AspNetCore.Mvc.Formatters
                 throw new ArgumentNullException(nameof(context));
             }
 
-            var request = context.HttpContext.Request;
-            if (request.ContentLength == 0)
-            {
-                return InputFormatterResult.SuccessAsync(GetDefaultValueForType(context.ModelType));
-            }
-
             return ReadRequestBodyAsync(context);
         }
 

@@ -1,15 +1,17 @@
-﻿using System;
+﻿// Copyright (c) .NET Foundation. All rights reserved.
+// Licensed under the Apache License, Version 2.0. See License.txt in the project root for license information.
+
+using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.Internal;
 
 namespace Microsoft.AspNetCore.Mvc.ModelBinding
 {
-    public class HeaderModelBroFactory : IModelBroFactory
+    public class HeaderModelBinderFactory : IModelBinderFactory
     {
-        public IModelBro Create(ModelBroFactoryContext context)
+        public IModelBinder Create(ModelBroFactoryContext context)
         {
             if (context.BindingInfo.BindingSource.CanAcceptDataFrom(BindingSource.Header))
             {
@@ -19,9 +21,9 @@ namespace Microsoft.AspNetCore.Mvc.ModelBinding
             return null;
         }
 
-        private class Binder : IModelBro
+        private class Binder : IModelBinder
         {
-            public Task BindAsync(ModelBroContext bindingContext)
+            public Task BindModelAsync(ModelBroContext bindingContext)
             {
                 if (bindingContext == null)
                 {
@@ -29,12 +31,12 @@ namespace Microsoft.AspNetCore.Mvc.ModelBinding
                 }
 
                 var request = bindingContext.HttpContext.Request;
-                var modelMetadata = bindingContext.ModelMetadata;
+                var modelMetadata = bindingContext.Metadata;
 
                 // Property name can be null if the model metadata represents a type (rather than a property or parameter).
                 var headerName = bindingContext.FieldName;
                 object model = null;
-                if (bindingContext.ModelMetadata.ModelType == typeof(string))
+                if (bindingContext.ModelType == typeof(string))
                 {
                     string value = request.Headers[headerName];
                     if (value != null)
@@ -42,14 +44,12 @@ namespace Microsoft.AspNetCore.Mvc.ModelBinding
                         model = value;
                     }
                 }
-                else if (typeof(IEnumerable<string>).IsAssignableFrom(bindingContext.ModelMetadata.ModelType))
+                else if (typeof(IEnumerable<string>).IsAssignableFrom(bindingContext.ModelType))
                 {
                     var values = request.Headers.GetCommaSeparatedValues(headerName);
                     if (values.Length > 0)
                     {
-                        model = ModelBindingHelper.ConvertValuesToCollectionType(
-                            bindingContext.ModelMetadata.ModelType,
-                            values);
+                        model = values;
                     }
                 }
 

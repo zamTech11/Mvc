@@ -139,34 +139,15 @@ namespace Microsoft.AspNetCore.Mvc.Formatters
                     jsonReader.ArrayPool = _charPool;
                     jsonReader.CloseInput = false;
 
-                    var successful = true;
+                    var result = new InputFormatterResult();
+
                     EventHandler<Newtonsoft.Json.Serialization.ErrorEventArgs> errorHandler = (sender, eventArgs) =>
                     {
-                        successful = false;
-
                         var exception = eventArgs.ErrorContext.Error;
+                        var path = eventArgs.ErrorContext.Path;
 
-                        // Handle path combinations such as "" + "Property", "Parent" + "Property", or "Parent" + "[12]".
-                        var key = eventArgs.ErrorContext.Path;
-                        if (!string.IsNullOrEmpty(context.ModelName))
-                        {
-                            if (string.IsNullOrEmpty(eventArgs.ErrorContext.Path))
-                            {
-                                key = context.ModelName;
-                            }
-                            else if (eventArgs.ErrorContext.Path[0] == '[')
-                            {
-                                key = context.ModelName + eventArgs.ErrorContext.Path;
-                            }
-                            else
-                            {
-                                key = context.ModelName + "." + eventArgs.ErrorContext.Path;
-                            }
-                        }
-
-                        var metadata = GetPathMetadata(context.Metadata, eventArgs.ErrorContext.Path);
-                        context.ModelState.TryAddModelError(key, eventArgs.ErrorContext.Error, metadata);
-
+                        result.Errors.Add(path, new ModelError(exception));
+                        
                         _logger.JsonInputException(eventArgs.ErrorContext.Error);
 
                         // Error must always be marked as handled
@@ -178,10 +159,10 @@ namespace Microsoft.AspNetCore.Mvc.Formatters
                     var type = context.ModelType;
                     var jsonSerializer = CreateJsonSerializer();
                     jsonSerializer.Error += errorHandler;
-                    object model;
+
                     try
                     {
-                        model = jsonSerializer.Deserialize(jsonReader, type);
+                        result.Model = jsonSerializer.Deserialize(jsonReader, type);
                     }
                     finally
                     {
@@ -190,12 +171,7 @@ namespace Microsoft.AspNetCore.Mvc.Formatters
                         ReleaseJsonSerializer(jsonSerializer);
                     }
 
-                    if (successful)
-                    {
-                        return InputFormatterResult.SuccessAsync(model);
-                    }
-
-                    return InputFormatterResult.FailureAsync();
+                    return Task.FromResult(result);
                 }
             }
         }
@@ -228,51 +204,5 @@ namespace Microsoft.AspNetCore.Mvc.Formatters
         /// </remarks>
         protected virtual void ReleaseJsonSerializer(JsonSerializer serializer)
             => _jsonSerializerPool.Return(serializer);
-
-        private ModelMetadata GetPathMetadata(ModelMetadata metadata, string path)
-        {
-            var index = 0;
-            while (index >= 0 && index < path.Length)
-            {
-                if (path[index] == '[')
-                {
-                    // At start of "[0]".
-                    if (metadata.ElementMetadata == null)
-                    {
-                        // Odd case but don't throw just because ErrorContext had an odd-looking path.
-                        break;
-                    }
-
-                    metadata = metadata.ElementMetadata;
-                    index = path.IndexOf(']', index);
-                }
-                else if (path[index] == '.' || path[index] == ']')
-                {
-                    // Skip '.' in "prefix.property" or "[0].property" or ']' in "[0]".
-                    index++;
-                }
-                else
-                {
-                    // At start of "property", "property." or "property[0]".
-                    var endIndex = path.IndexOfAny(new[] { '.', '[' }, index);
-                    if (endIndex == -1)
-                    {
-                        endIndex = path.Length;
-                    }
-
-                    var propertyName = path.Substring(index, endIndex - index);
-                    if (metadata.Properties[propertyName] == null)
-                    {
-                        // Odd case but don't throw just because ErrorContext had an odd-looking path.
-                        break;
-                    }
-
-                    metadata = metadata.Properties[propertyName];
-                    index = endIndex;
-                }
-            }
-
-            return metadata;
-        }
     }
 }

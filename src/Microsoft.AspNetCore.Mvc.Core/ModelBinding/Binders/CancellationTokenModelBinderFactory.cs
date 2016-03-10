@@ -12,28 +12,43 @@ namespace Microsoft.AspNetCore.Mvc.ModelBinding
     /// <summary>
     /// <see cref="IModelBinder"/> implementation to bind models of type <see cref="CancellationToken"/>.
     /// </summary>
-    public class CancellationTokenModelBinder : IModelBinder
+    public class CancellationTokenModelBinderFactory : IModelBinderFactory
     {
-        /// <inheritdoc />
-        public Task BindModelAsync(ModelBindingContext bindingContext)
+        public IModelBinder Create(ModelBroFactoryContext context)
         {
-            if (bindingContext == null)
+            if (context == null)
             {
-                throw new ArgumentNullException(nameof(bindingContext));
+                throw new ArgumentNullException(nameof(context));
             }
 
-            if (bindingContext.ModelType == typeof(CancellationToken))
+            if (context.ModelType == typeof(CancellationToken))
             {
+                return new Binder();
+            }
+
+            return null;
+        }
+
+        private class Binder : IModelBinder
+        {
+            /// <inheritdoc />
+            public Task BindModelAsync(ModelBroContext bindingContext)
+            {
+                if (bindingContext == null)
+                {
+                    throw new ArgumentNullException(nameof(bindingContext));
+                }
+
                 // We need to force boxing now, so we can insert the same reference to the boxed CancellationToken
                 // in both the ValidationState and ModelBindingResult.
                 //
                 // DO NOT simplify this code by removing the cast.
-                var model = (object)bindingContext.OperationBindingContext.HttpContext.RequestAborted;
+                var model = (object)bindingContext.HttpContext.RequestAborted;
                 bindingContext.ValidationState.Add(model, new ValidationStateEntry() { SuppressValidation = true });
                 bindingContext.Result = ModelBindingResult.Success(bindingContext.ModelName, model);
-            }
 
-            return TaskCache.CompletedTask;
+                return TaskCache.CompletedTask;
+            }
         }
     }
 }

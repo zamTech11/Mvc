@@ -10,38 +10,35 @@ using Microsoft.AspNetCore.Mvc.Internal;
 
 namespace Microsoft.AspNetCore.Mvc.ModelBinding
 {
-    public class BodyModelBroFactory : IModelBroFactory
+    public class BodyModelBinderFactory : IModelBinderFactory
     {
         private readonly Func<Stream, Encoding, TextReader> _readerFactory;
 
-        public BodyModelBroFactory(IHttpRequestStreamReaderFactory readerFactory)
+        public BodyModelBinderFactory(IHttpRequestStreamReaderFactory readerFactory)
         {
             _readerFactory = readerFactory.CreateReader;
         }
 
-        public IModelBro Create(ModelBroFactoryContext context)
+        public IModelBinder Create(ModelBroFactoryContext context)
         {
             if (context.BindingInfo.BindingSource == BindingSource.Body)
             {
-                var key = context.IsTopLevelObject ? context.ModelMetadata.BinderModelName ?? string.Empty : null;
-                return new Binder(_readerFactory, key);
+                return new Binder(_readerFactory);
             }
 
             return null;
         }
 
-        private class Binder : IModelBro
+        private class Binder : IModelBinder
         {
             private readonly Func<Stream, Encoding, TextReader> _readerFactory;
-            private readonly string _modelBindingKey;
 
-            public Binder(Func<Stream, Encoding, TextReader> readerFactory, string modelBindingKey)
+            public Binder(Func<Stream, Encoding, TextReader> readerFactory)
             {
                 _readerFactory = readerFactory;
-                _modelBindingKey = modelBindingKey;
             }
 
-            public async Task BindAsync(ModelBroContext bindingContext)
+            public async Task BindModelAsync(ModelBroContext bindingContext)
             {
                 if (bindingContext == null)
                 {
@@ -49,14 +46,12 @@ namespace Microsoft.AspNetCore.Mvc.ModelBinding
                 }
                 
                 var httpContext = bindingContext.HttpContext;
-                var key = _modelBindingKey ?? bindingContext.ModelName;
+                var key = "$body";
 
                 var formatterContext = new InputFormatterContext(
                     httpContext,
-                    key,
-                    bindingContext.ModelState,
-                    bindingContext.ModelMetadata,
-                    _readerFactory);
+                    _readerFactory,
+                    bindingContext.ModelType);
 
                 var formatters = bindingContext.InputFormatters;
                 var formatter = formatters.FirstOrDefault(f => f.CanRead(formatterContext));
@@ -67,7 +62,7 @@ namespace Microsoft.AspNetCore.Mvc.ModelBinding
                         bindingContext.HttpContext.Request.ContentType);
 
                     var exception = new UnsupportedContentTypeException(message);
-                    bindingContext.ModelState.AddModelError(key, exception, bindingContext.ModelMetadata);
+                    bindingContext.ModelState.AddModelError(key, exception, bindingContext.Metadata);
 
                     // This model binder is the only handler for the Body binding source and it cannot run twice. Always
                     // tell the model binding system to skip other model binders and never to fall back i.e. indicate a
@@ -86,6 +81,15 @@ namespace Microsoft.AspNetCore.Mvc.ModelBinding
                     {
                         // Formatter encountered an error. Do not use the model it returned. As above, tell the model
                         // binding system to skip other model binders and never to fall back.
+                        foreach (var error in result.Errors)
+                        {
+                            // TODO include exception
+                            bindingContext.ModelState.TryAddModelError(
+                                ModelNames.CreatePropertyModelName(key, error.Key),
+                                error.Value.ErrorMessage);
+                        }
+
+
                         bindingContext.Result = ModelBindingResult.Failed(key);
                         return;
                     }
@@ -95,7 +99,7 @@ namespace Microsoft.AspNetCore.Mvc.ModelBinding
                 }
                 catch (Exception ex)
                 {
-                    bindingContext.ModelState.AddModelError(key, ex, bindingContext.ModelMetadata);
+                    bindingContext.ModelState.AddModelError(key, ex, bindingContext.Metadata);
 
                     // This model binder is the only handler for the Body binding source and it cannot run twice. Always
                     // tell the model binding system to skip other model binders and never to fall back i.e. indicate a

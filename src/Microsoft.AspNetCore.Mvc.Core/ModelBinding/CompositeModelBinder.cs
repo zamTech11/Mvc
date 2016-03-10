@@ -36,7 +36,7 @@ namespace Microsoft.AspNetCore.Mvc.ModelBinding
         /// <inheritdoc />
         public IList<IModelBinder> ModelBinders { get; }
 
-        public virtual Task BindModelAsync(ModelBindingContext bindingContext)
+        public virtual Task BindModelAsync(ModelBroContext bindingContext)
         {
             if (bindingContext == null)
             {
@@ -46,7 +46,7 @@ namespace Microsoft.AspNetCore.Mvc.ModelBinding
             return RunModelBinders(bindingContext);
         }
 
-        private async Task RunModelBinders(ModelBindingContext bindingContext)
+        private async Task RunModelBinders(ModelBroContext bindingContext)
         {
             RuntimeHelpers.EnsureSufficientExecutionStack();
 

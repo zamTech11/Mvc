@@ -1,24 +1,23 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Mvc.Internal;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Microsoft.AspNetCore.Mvc.ModelBinding
 {
-    public class ServicesModelBroFactory : IModelBroFactory
+    public class ServicesModelBinderFactory : IModelBinderFactory
     {
-        public IModelBro Create(ModelBroFactoryContext context)
+        public IModelBinder Create(ModelBroFactoryContext context)
         {
             if (context.BindingInfo.BindingSource == BindingSource.Services)
             {
-                return new Binder(context.ModelMetadata.ModelType);
+                return new Binder(context.ModelType);
             }
 
             return null;
         }
 
-        private class Binder : IModelBro
+        private class Binder : IModelBinder
         {
             private readonly Type _type;
 
@@ -27,9 +26,10 @@ namespace Microsoft.AspNetCore.Mvc.ModelBinding
                 _type = type;
             }
 
-            public Task BindAsync(ModelBroContext context)
+            public Task BindModelAsync(ModelBroContext context)
             {
-                context.Result = context.RequestServices.GetRequiredService
+                context.Result = context.RequestServices.GetRequiredService(_type);
+                return TaskCache.CompletedTask;
             }
         }
     }

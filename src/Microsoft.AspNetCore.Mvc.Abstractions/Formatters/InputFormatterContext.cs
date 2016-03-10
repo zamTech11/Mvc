@@ -20,41 +20,20 @@ namespace Microsoft.AspNetCore.Mvc.Formatters
         /// <param name="httpContext">
         /// The <see cref="Http.HttpContext"/> for the current operation.
         /// </param>
-        /// <param name="modelName">The name of the model.</param>
-        /// <param name="modelState">
-        /// The <see cref="ModelStateDictionary"/> for recording errors.
-        /// </param>
-        /// <param name="metadata">
-        /// The <see cref="ModelMetadata"/> of the model to deserialize.
-        /// </param>
         /// <param name="readerFactory">
         /// A delegate which can create a <see cref="TextReader"/> for the request body.
         /// </param>
+        /// <param name="modelType">
+        /// The <see cref="Type"/> of the model object to deserialize.
+        /// </param>
         public InputFormatterContext(
             HttpContext httpContext,
-            string modelName,
-            ModelStateDictionary modelState,
-            ModelMetadata metadata,
-            Func<Stream, Encoding, TextReader> readerFactory)
+            Func<Stream, Encoding, TextReader> readerFactory,
+            Type modelType)
         {
             if (httpContext == null)
             {
                 throw new ArgumentNullException(nameof(httpContext));
-            }
-
-            if (modelName == null)
-            {
-                throw new ArgumentNullException(nameof(modelName));
-            }
-
-            if (modelState == null)
-            {
-                throw new ArgumentNullException(nameof(modelState));
-            }
-
-            if (metadata == null)
-            {
-                throw new ArgumentNullException(nameof(metadata));
             }
 
             if (readerFactory == null)
@@ -63,11 +42,8 @@ namespace Microsoft.AspNetCore.Mvc.Formatters
             }
 
             HttpContext = httpContext;
-            ModelName = modelName;
-            ModelState = modelState;
-            Metadata = metadata;
             ReaderFactory = readerFactory;
-            ModelType = metadata.ModelType;
+            ModelType = modelType;
         }
 
         /// <summary>
@@ -76,22 +52,7 @@ namespace Microsoft.AspNetCore.Mvc.Formatters
         public HttpContext HttpContext { get; }
 
         /// <summary>
-        /// Gets the name of the model. Used as the key or key prefix for errors added to <see cref="ModelState"/>.
-        /// </summary>
-        public string ModelName { get; }
-
-        /// <summary>
-        /// Gets the <see cref="ModelStateDictionary"/> associated with the current operation.
-        /// </summary>
-        public ModelStateDictionary ModelState { get; }
-
-        /// <summary>
-        /// Gets the requested <see cref="ModelMetadata"/> of the request body deserialization.
-        /// </summary>
-        public ModelMetadata Metadata { get; }
-
-        /// <summary>
-        /// Gets the requested <see cref="Type"/> of the request body deserialization.
+        /// Gets the requested <see cref="System.Type"/> of the request body deserialization.
         /// </summary>
         public Type ModelType { get; }
 

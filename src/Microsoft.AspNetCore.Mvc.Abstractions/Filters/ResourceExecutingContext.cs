@@ -25,16 +25,6 @@ namespace Microsoft.AspNetCore.Mvc.Filters
         }
 
         /// <summary>
-        /// Gets or sets the list of <see cref="IInputFormatter"/> instances used by model binding.
-        /// </summary>
-        public virtual FormatterCollection<IInputFormatter> InputFormatters { get; set; }
-
-        /// <summary>
-        /// Gets or sets the list of <see cref="IModelBinder"/> instances used by model binding.
-        /// </summary>
-        public virtual IList<IModelBinder> ModelBinders { get; set; }
-
-        /// <summary>
         /// Gets or sets the result of the action to be executed.
         /// </summary>
         /// <remarks>
@@ -42,15 +32,5 @@ namespace Microsoft.AspNetCore.Mvc.Filters
         /// short-circuit execution of additional resource filtes and the action itself.
         /// </remarks>
         public virtual IActionResult Result { get; set; }
-
-        /// <summary>
-        /// Gets or sets the list of <see cref="IValueProviderFactory"/> instances used by model binding.
-        /// </summary>
-        public IList<IValueProviderFactory> ValueProviderFactories { get; set; }
-
-        /// <summary>
-        /// Gets or sets the list of <see cref="IModelValidatorProvider"/> instances used by model binding.
-        /// </summary>
-        public IList<IModelValidatorProvider> ValidatorProviders { get; set; }
     }
 }

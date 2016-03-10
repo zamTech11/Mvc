@@ -50,9 +50,9 @@ namespace Microsoft.AspNetCore.Mvc.Formatters
                     context.HttpContext.Request.ContentType);
 
                 var exception = new UnsupportedContentTypeException(message);
-                context.ModelState.AddModelError(context.ModelName, exception, context.Metadata);
-
-                return InputFormatterResult.FailureAsync();
+                var result = new InputFormatterResult();
+                result.Errors.Add(string.Empty, new ModelError(exception));
+                return Task.FromResult(result);
             }
 
             return ReadRequestBodyAsync(context, selectedEncoding);

@@ -7,7 +7,7 @@ namespace Microsoft.AspNetCore.Mvc.Internal
 {
     public static class TaskCache
     {
-#if NET451
+#if !NETSTANDARD1_3
         static readonly Task _completedTask = Task.FromResult(0);
 #endif
 
@@ -17,10 +17,10 @@ namespace Microsoft.AspNetCore.Mvc.Internal
         {
             get
             {
-#if NET451
-                return _completedTask;
-#else
+#if NETSTANDARD1_3
                 return Task.CompletedTask;
+#else
+                return _completedTask;
 #endif
             }
         }
