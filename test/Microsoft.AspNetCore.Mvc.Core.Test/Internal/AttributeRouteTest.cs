@@ -119,5 +119,77 @@ namespace Microsoft.AspNetCore.Mvc.Internal
 
             handler.Verify(h => h.RouteAsync(It.IsAny<RouteContext>()), Times.Once());
         }
+
+        [Theory]
+        //[InlineData("home")]
+        [InlineData("home/index")]
+        //[InlineData("a/b/c")]
+        public async Task Wildcard(string requestPath)
+        {
+            // Arrange
+            var handler = new Mock<IRouter>(MockBehavior.Strict);
+            handler
+                .Setup(h => h.RouteAsync(It.IsAny<RouteContext>()))
+                .Callback<RouteContext>(c => c.Handler = NullHandler)
+                .Returns(Task.FromResult(true))
+                .Verifiable();
+
+            var actionDescriptors = new List<ActionDescriptor>()
+            {
+                new ActionDescriptor()
+                {
+                    AttributeRouteInfo = new AttributeRouteInfo()
+                    {
+                        Template = "{*path}"
+                    },
+                    RouteConstraints = new List<RouteDataActionConstraint>()
+                    {
+                        new RouteDataActionConstraint(TreeRouter.RouteGroupKey, "1"),
+                    },
+                }
+            };
+
+            var actionDescriptorProvider = new Mock<IActionDescriptorCollectionProvider>(MockBehavior.Strict);
+            actionDescriptorProvider
+                .SetupGet(ad => ad.ActionDescriptors)
+                .Returns(new ActionDescriptorCollection(actionDescriptors, version: 1));
+
+            var policy = new UriBuilderContextPooledObjectPolicy(new UrlTestEncoder());
+            var pool = new DefaultObjectPool<UriBuildingContext>(policy);
+
+            var route = new AttributeRoute(
+                handler.Object,
+                actionDescriptorProvider.Object,
+                Mock.Of<IInlineConstraintResolver>(),
+                pool,
+                new UrlTestEncoder(),
+                NullLoggerFactory.Instance);
+
+            var requestServices = new Mock<IServiceProvider>(MockBehavior.Strict);
+            requestServices
+                .Setup(s => s.GetService(typeof(ILoggerFactory)))
+                .Returns(NullLoggerFactory.Instance);
+
+            var httpContext = new DefaultHttpContext();
+            httpContext.Request.Path = new PathString($"/{requestPath}");
+            httpContext.RequestServices = requestServices.Object;
+
+            var context = new RouteContext(httpContext);
+
+            Console.WriteLine("Attach now!");
+            while (!System.Diagnostics.Debugger.IsAttached)
+            {
+                System.Threading.Thread.Sleep(500);
+            }
+
+            // Act
+            await route.RouteAsync(context);
+
+            // Assert
+            Assert.NotNull(context.Handler);
+            Assert.Equal(requestPath, context.RouteData.Values["path"]);
+
+            handler.Verify(h => h.RouteAsync(It.IsAny<RouteContext>()), Times.Once());
+        }
     }
 }
