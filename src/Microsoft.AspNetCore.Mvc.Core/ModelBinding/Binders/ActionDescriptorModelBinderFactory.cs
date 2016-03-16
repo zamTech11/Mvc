@@ -35,7 +35,7 @@ namespace Microsoft.AspNetCore.Mvc.ModelBinding
                 _children = children;
             }
 
-            public async Task BindModelAsync(ModelBroContext bindingContext)
+            public async Task BindModelAsync(ModelBindingContext bindingContext)
             {
                 foreach (var child in _children)
                 {

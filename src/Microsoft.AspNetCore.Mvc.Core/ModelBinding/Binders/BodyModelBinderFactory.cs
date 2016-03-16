@@ -38,7 +38,7 @@ namespace Microsoft.AspNetCore.Mvc.ModelBinding
                 _readerFactory = readerFactory;
             }
 
-            public async Task BindModelAsync(ModelBroContext bindingContext)
+            public async Task BindModelAsync(ModelBindingContext bindingContext)
             {
                 if (bindingContext == null)
                 {
@@ -53,7 +53,7 @@ namespace Microsoft.AspNetCore.Mvc.ModelBinding
                     _readerFactory,
                     bindingContext.ModelType);
 
-                var formatters = bindingContext.InputFormatters;
+                var formatters = bindingContext.OperationBindingContext.InputFormatters;
                 var formatter = formatters.FirstOrDefault(f => f.CanRead(formatterContext));
 
                 if (formatter == null)

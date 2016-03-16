@@ -11,7 +11,7 @@ namespace Microsoft.AspNetCore.Mvc.ModelBinding
         {
             if (context.BindingInfo.BindingSource == BindingSource.Services)
             {
-                return new Binder(context.ModelType);
+                return new Binder(context.Metadata);
             }
 
             return null;
@@ -19,16 +19,22 @@ namespace Microsoft.AspNetCore.Mvc.ModelBinding
 
         private class Binder : IModelBinder
         {
-            private readonly Type _type;
+            private readonly ModelBroMetadata _metadata;
 
-            public Binder(Type type)
+            public Binder(ModelBroMetadata metadata)
             {
-                _type = type;
+                if (metadata == null)
+                {
+                    throw new ArgumentNullException(nameof(metadata));
+                }
+
+                _metadata = metadata;
             }
 
-            public Task BindModelAsync(ModelBroContext context)
+            public Task BindModelAsync(ModelBindingContext context)
             {
-                context.Result = context.RequestServices.GetRequiredService(_type);
+                var service = context.HttpContext.RequestServices.GetRequiredService(_metadata.GetType());
+                context.Result = ModelBindingResult.Success(_metadata.ModelName, service);
                 return TaskCache.CompletedTask;
             }
         }

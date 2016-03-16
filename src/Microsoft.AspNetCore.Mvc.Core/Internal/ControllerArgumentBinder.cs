@@ -59,14 +59,13 @@ namespace Microsoft.AspNetCore.Mvc.Internal
             }
 
             var broContext = new ModelBinderManagerContext();
-            broContext.ActionDescriptor = context.ActionDescriptor;
+            broContext.Metadata = new ActionDescriptorBroMetadata(
+                _modelMetadataProvider, 
+                context.ActionDescriptor);
 
             var binder = _bro.GetItBro(broContext);
 
-            var c1 = GetOperationBindingContext(context);
-            var c2 = DefaultModelBindingContext.CreateBindingContext(c1, null, null, null);
-
-            var bindingContext = new ModelBroContext(c2);
+            var bindingContext = DefaultModelBindingContext.CreateBindingContext(c1, null, null, null);
             bindingContext.Model = context;
 
             await binder.BindModelAsync(bindingContext);

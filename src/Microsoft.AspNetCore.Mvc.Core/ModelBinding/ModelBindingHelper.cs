@@ -730,19 +730,6 @@ namespace Microsoft.AspNetCore.Mvc.ModelBinding
             }
         }
 
-        internal static void ValidateBindingContext(ModelBindingContext bindingContext)
-        {
-            if (bindingContext == null)
-            {
-                throw new ArgumentNullException(nameof(bindingContext));
-            }
-
-            if (bindingContext.ModelMetadata == null)
-            {
-                throw new ArgumentException(Resources.ModelBinderUtil_ModelMetadataCannotBeNull, nameof(bindingContext));
-            }
-        }
-
         internal static TModel CastOrDefault<TModel>(object model)
         {
             return (model is TModel) ? (TModel)model : default(TModel);
@@ -763,7 +750,7 @@ namespace Microsoft.AspNetCore.Mvc.ModelBinding
         {
             var model = bindingContext.Model;
             var modelType = bindingContext.ModelType;
-            var writeable = !bindingContext.ModelMetadata.IsReadOnly;
+            var writeable = !bindingContext.Metadata.IsReadOnly;
             if (typeof(T).IsAssignableFrom(modelType))
             {
                 // Scalar case. Existing model is not relevant and property must always be set. Will use a List<T>
@@ -804,45 +791,6 @@ namespace Microsoft.AspNetCore.Mvc.ModelBinding
                 modelType.GetTypeInfo().IsClass &&
                 !modelType.GetTypeInfo().IsAbstract &&
                 typeof(ICollection<T>).IsAssignableFrom(modelType);
-        }
-
-        /// <summary>
-        /// Creates an <see cref="ICollection{T}"/> instance compatible with <paramref name="bindingContext"/>'s
-        /// <see cref="ModelBindingContext.ModelType"/>.
-        /// </summary>
-        /// <typeparam name="T">The element type of the <see cref="ICollection{T}"/> required.</typeparam>
-        /// <param name="bindingContext">The <see cref="ModelBindingContext"/>.</param>
-        /// <returns>
-        /// An <see cref="ICollection{T}"/> instance compatible with <paramref name="bindingContext"/>'s
-        /// <see cref="ModelBindingContext.ModelType"/>.
-        /// </returns>
-        /// <remarks>
-        /// Should not be called if <see cref="CanGetCompatibleCollection{T}"/> returned <c>false</c>.
-        /// </remarks>
-        public static ICollection<T> GetCompatibleCollection<T>(ModelBindingContext bindingContext)
-        {
-            return GetCompatibleCollection<T>(bindingContext.Model, bindingContext.ModelType, capacity: null);
-        }
-
-        /// <summary>
-        /// Creates an <see cref="ICollection{T}"/> instance compatible with <paramref name="bindingContext"/>'s
-        /// <see cref="ModelBindingContext.ModelType"/>.
-        /// </summary>
-        /// <typeparam name="T">The element type of the <see cref="ICollection{T}"/> required.</typeparam>
-        /// <param name="bindingContext">The <see cref="ModelBindingContext"/>.</param>
-        /// <param name="capacity">
-        /// Capacity for use when creating a <see cref="List{T}"/> instance. Not used when creating another type.
-        /// </param>
-        /// <returns>
-        /// An <see cref="ICollection{T}"/> instance compatible with <paramref name="bindingContext"/>'s
-        /// <see cref="ModelBindingContext.ModelType"/>.
-        /// </returns>
-        /// <remarks>
-        /// Should not be called if <see cref="CanGetCompatibleCollection{T}"/> returned <c>false</c>.
-        /// </remarks>
-        public static ICollection<T> GetCompatibleCollection<T>(ModelBindingContext bindingContext, int capacity)
-        {
-            return GetCompatibleCollection<T>(bindingContext.Model, bindingContext.ModelType, (int?)capacity);
         }
 
         public static ICollection<T> GetCompatibleCollection<T>(object model, Type modelType)

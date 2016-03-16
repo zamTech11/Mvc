@@ -119,7 +119,7 @@ namespace Microsoft.AspNetCore.Mvc.ModelBinding
                 // ICollection<T>. For example an IEnumerable<T> property may have a List<T> default value. Do not use
                 // IsAssignableFrom() because that does not handle explicit interface implementations and binders all
                 // perform explicit casts.
-                if (!context.ModelMetadata.IsCollectionType)
+                if (!context.Metadata.IsCollectionType)
                 {
                     return null;
                 }

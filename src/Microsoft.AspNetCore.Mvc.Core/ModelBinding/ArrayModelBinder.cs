@@ -24,7 +24,7 @@ namespace Microsoft.AspNetCore.Mvc.ModelBinding
                 throw new ArgumentNullException(nameof(bindingContext));
             }
 
-            if (bindingContext.ModelMetadata.IsReadOnly)
+            if (bindingContext.Metadata.IsReadOnly)
             {
                 return TaskCache.CompletedTask;
             }

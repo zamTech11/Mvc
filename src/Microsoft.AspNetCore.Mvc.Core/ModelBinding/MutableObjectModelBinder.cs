@@ -5,26 +5,47 @@ using System;
 using System.Reflection;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc.Internal;
+using Microsoft.AspNetCore.Mvc.ModelBinding.Metadata;
 
 namespace Microsoft.AspNetCore.Mvc.ModelBinding
 {
+    public class MutableObjectModelBinderFactory : IModelBinderFactory
+    {
+        public IModelBinder Create(ModelBroFactoryContext context)
+        {
+            if (context.Metadata.Get<ITypeMetadata>().IsComplexType &&
+                !context.Metadata.Get<ITypeMetadata>().IsEnumerableType)
+            {
+                return new MutableObjectModelBinder(context.Metadata);
+            }
+
+            return null;
+        }
+    }
+
     /// <summary>
     /// <see cref="IModelBinder"/> implementation for binding complex values.
     /// </summary>
     public class MutableObjectModelBinder : IModelBinder
     {
+        private readonly ModelBroMetadata _metadata;
+
+        public MutableObjectModelBinder(ModelBroMetadata metadata)
+        {
+            if (metadata == null)
+            {
+                throw new ArgumentNullException(nameof(metadata));
+            }
+
+            _metadata = metadata;
+        }
+
         /// <inheritdoc />
         public Task BindModelAsync(ModelBindingContext bindingContext)
         {
             if (bindingContext == null)
             {
                 throw new ArgumentNullException(nameof(bindingContext));
-            }
-
-            ModelBindingHelper.ValidateBindingContext(bindingContext);
-            if (!CanBindType(bindingContext.ModelMetadata))
-            {
-                return TaskCache.CompletedTask;
             }
 
             if (!CanCreateModel(bindingContext))
@@ -45,7 +66,7 @@ namespace Microsoft.AspNetCore.Mvc.ModelBinding
                 bindingContext.Model = CreateModel(bindingContext);
             }
 
-            foreach (var property in bindingContext.ModelMetadata.Properties)
+            foreach (var property in bindingContext.Metadata.Properties)
             {
                 if (!CanBindProperty(bindingContext, property))
                 {
@@ -101,7 +122,7 @@ namespace Microsoft.AspNetCore.Mvc.ModelBinding
         /// <returns><c>true</c> if the model property can be bound, otherwise <c>false</c>.</returns>
         protected virtual bool CanBindProperty(ModelBindingContext bindingContext, ModelMetadata propertyMetadata)
         {
-            var modelMetadataPredicate = bindingContext.ModelMetadata.PropertyBindingPredicateProvider?.PropertyFilter;
+            var modelMetadataPredicate = bindingContext.Metadata.PropertyBindingPredicateProvider?.PropertyFilter;
             if (modelMetadataPredicate?.Invoke(bindingContext, propertyMetadata.PropertyName) == false)
             {
                 return false;
@@ -180,7 +201,7 @@ namespace Microsoft.AspNetCore.Mvc.ModelBinding
         {
             // If there are no properties on the model, there is nothing to bind. We are here means this is not a top
             // level object. So we return false.
-            if (bindingContext.ModelMetadata.Properties.Count == 0)
+            if (bindingContext.Metadata.Properties.Count == 0)
             {
                 return false;
             }
@@ -212,7 +233,7 @@ namespace Microsoft.AspNetCore.Mvc.ModelBinding
             //
             var hasBindableProperty = false;
             var isAnyPropertyEnabledForValueProviderBasedBinding = false;
-            foreach (var propertyMetadata in bindingContext.ModelMetadata.Properties)
+            foreach (var propertyMetadata in bindingContext.Metadata.Properties)
             {
                 if (!CanBindProperty(bindingContext, propertyMetadata))
                 {
@@ -284,22 +305,6 @@ namespace Microsoft.AspNetCore.Mvc.ModelBinding
             return false;
         }
 
-        private static bool CanBindType(ModelMetadata modelMetadata)
-        {
-            // Simple types cannot use this binder
-            if (!modelMetadata.IsComplexType)
-            {
-                return false;
-            }
-
-            if (modelMetadata.IsEnumerableType)
-            {
-                return false;
-            }
-
-            return true;
-        }
-
         // Internal for tests
         internal static bool CanUpdatePropertyInternal(ModelMetadata propertyMetadata)
         {
@@ -331,7 +336,6 @@ namespace Microsoft.AspNetCore.Mvc.ModelBinding
 
             return true;
         }
-
 
         /// <summary>
         /// Creates suitable <see cref="object"/> for given <paramref name="bindingContext"/>.
@@ -412,7 +416,7 @@ namespace Microsoft.AspNetCore.Mvc.ModelBinding
             var validationState = modelState.GetFieldValidationState(modelStateKey);
             if (validationState == ModelValidationState.Unvalidated)
             {
-                modelState.AddModelError(modelStateKey, exception, bindingContext.ModelMetadata);
+                modelState.AddModelError(modelStateKey, exception, bindingContext.Metadata);
             }
         }
     }

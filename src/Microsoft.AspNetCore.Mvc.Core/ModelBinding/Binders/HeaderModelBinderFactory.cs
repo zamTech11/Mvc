@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.Internal;
+using Microsoft.AspNetCore.Mvc.ModelBinding.Metadata;
 
 namespace Microsoft.AspNetCore.Mvc.ModelBinding
 {
@@ -15,7 +16,7 @@ namespace Microsoft.AspNetCore.Mvc.ModelBinding
         {
             if (context.BindingInfo.BindingSource.CanAcceptDataFrom(BindingSource.Header))
             {
-                return new Binder();
+                return new Binder(context.Metadata);
             }
 
             return null;
@@ -23,7 +24,19 @@ namespace Microsoft.AspNetCore.Mvc.ModelBinding
 
         private class Binder : IModelBinder
         {
-            public Task BindModelAsync(ModelBroContext bindingContext)
+            private readonly ModelBroMetadata _metadata;
+
+            public Binder(ModelBroMetadata metadata)
+            {
+                if (metadata == null)
+                {
+                    throw new ArgumentNullException(nameof(metadata));
+                }
+
+                _metadata = metadata;
+            }
+
+            public Task BindModelAsync(ModelBindingContext bindingContext)
             {
                 if (bindingContext == null)
                 {
@@ -31,12 +44,11 @@ namespace Microsoft.AspNetCore.Mvc.ModelBinding
                 }
 
                 var request = bindingContext.HttpContext.Request;
-                var modelMetadata = bindingContext.Metadata;
 
-                // Property name can be null if the model metadata represents a type (rather than a property or parameter).
-                var headerName = bindingContext.FieldName;
+                var headerName = _metadata.ModelName;
+                var modelType = _metadata.Get<ITypeMetadata>().ModelType;
                 object model = null;
-                if (bindingContext.ModelType == typeof(string))
+                if (modelType == typeof(string))
                 {
                     string value = request.Headers[headerName];
                     if (value != null)
@@ -44,7 +56,7 @@ namespace Microsoft.AspNetCore.Mvc.ModelBinding
                         model = value;
                     }
                 }
-                else if (typeof(IEnumerable<string>).IsAssignableFrom(bindingContext.ModelType))
+                else if (typeof(IEnumerable<string>).IsAssignableFrom(modelType))
                 {
                     var values = request.Headers.GetCommaSeparatedValues(headerName);
                     if (values.Length > 0)
@@ -55,17 +67,17 @@ namespace Microsoft.AspNetCore.Mvc.ModelBinding
 
                 if (model == null)
                 {
-                    bindingContext.Result = ModelBindingResult.Failed(bindingContext.ModelName);
+                    bindingContext.Result = ModelBindingResult.Failed(_metadata.ModelName);
                     return TaskCache.CompletedTask;
                 }
                 else
                 {
                     bindingContext.ModelState.SetModelValue(
-                        bindingContext.ModelName,
+                        _metadata.ModelName,
                         request.Headers.GetCommaSeparatedValues(headerName),
                         request.Headers[headerName]);
 
-                    bindingContext.Result = ModelBindingResult.Success(bindingContext.ModelName, model);
+                    bindingContext.Result = ModelBindingResult.Success(_metadata.ModelName, model);
                     return TaskCache.CompletedTask;
                 }
             }

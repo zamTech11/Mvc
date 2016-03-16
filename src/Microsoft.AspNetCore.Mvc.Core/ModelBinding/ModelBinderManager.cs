@@ -87,7 +87,7 @@ namespace Microsoft.AspNetCore.Mvc.ModelBinding
 
             public IModelBinder Inner { get; set; }
 
-            public Task BindModelAsync(ModelBroContext bindingContext)
+            public Task BindModelAsync(ModelBindingContext bindingContext)
             {
                 return Inner.BindModelAsync(bindingContext);
             }

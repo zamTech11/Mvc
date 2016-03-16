@@ -41,7 +41,7 @@ namespace Microsoft.AspNetCore.Mvc.ModelBinding
         {
             public IDictionary<ModelBroMetadata, IModelBinder> PropertyBinders { get; } = new Dictionary<ModelBroMetadata, IModelBinder>();
 
-            public Task BindModelAsync(ModelBroContext bindingContext)
+            public Task BindModelAsync(ModelBindingContext bindingContext)
             {
                 throw new NotImplementedException();
             }

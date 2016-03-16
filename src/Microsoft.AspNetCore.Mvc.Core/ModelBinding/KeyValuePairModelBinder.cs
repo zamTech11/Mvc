@@ -39,7 +39,7 @@ namespace Microsoft.AspNetCore.Mvc.ModelBinding
             {
                 bindingContext.ModelState.TryAddModelError(
                     keyResult.Key,
-                    bindingContext.ModelMetadata.ModelBindingMessageProvider.MissingKeyOrValueAccessor());
+                    bindingContext.Metadata.ModelBindingMessageProvider.MissingKeyOrValueAccessor());
 
                 // Were able to get some data for this model.
                 // Always tell the model binding system to skip other model binders.
@@ -51,7 +51,7 @@ namespace Microsoft.AspNetCore.Mvc.ModelBinding
             {
                 bindingContext.ModelState.TryAddModelError(
                     valueResult.Key,
-                    bindingContext.ModelMetadata.ModelBindingMessageProvider.MissingKeyOrValueAccessor());
+                    bindingContext.Metadata.ModelBindingMessageProvider.MissingKeyOrValueAccessor());
 
                 // Were able to get some data for this model.
                 // Always tell the model binding system to skip other model binders.

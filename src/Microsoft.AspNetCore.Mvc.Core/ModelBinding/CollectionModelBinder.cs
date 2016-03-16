@@ -20,8 +20,20 @@ namespace Microsoft.AspNetCore.Mvc.ModelBinding
     /// <typeparam name="TElement">Type of elements in the collection.</typeparam>
     public class CollectionModelBinder<TElement> : ICollectionModelBinder
     {
+        private readonly ModelBroMetadata _metadata;
+
+        public CollectionModelBinder(ModelBroMetadata metadata)
+        {
+            if (metadata == null)
+            {
+                throw new ArgumentNullException(nameof(metadata));
+            }
+
+            _metadata = metadata;
+        }
+
         /// <inheritdoc />
-        public virtual async Task BindModelAsync(ModelBroContext bindingContext)
+        public virtual async Task BindModelAsync(ModelBindingContext bindingContext)
         {
             if (bindingContext == null)
             {
@@ -29,7 +41,7 @@ namespace Microsoft.AspNetCore.Mvc.ModelBinding
             }
 
             var model = bindingContext.Model;
-            if (!bindingContext.ValueProvider.ContainsPrefix(bindingContext.ModelName))
+            if (!bindingContext.ValueProvider.ContainsPrefix(_metadata.ModelName))
             {
                 // If we failed to find data for a top-level model, then generate a
                 // default 'empty' model (or use existing Model) and return it.
@@ -157,8 +169,6 @@ namespace Microsoft.AspNetCore.Mvc.ModelBinding
 
                 using (bindingContext.EnterNestedScope(
                     elementMetadata,
-                    fieldName: bindingContext.FieldName,
-                    modelName: bindingContext.ModelName,
                     model: null))
                 {
                     await bindingContext.OperationBindingContext.ModelBinder.BindModelAsync(bindingContext);
@@ -178,7 +188,7 @@ namespace Microsoft.AspNetCore.Mvc.ModelBinding
         }
 
         // Used when the ValueProvider contains the collection to be bound as multiple elements, e.g. foo[0], foo[1].
-        private Task<CollectionResult> BindComplexCollection(ModelBroContext bindingContext)
+        private Task<CollectionResult> BindComplexCollection(ModelBindingContext bindingContext)
         {
             var indexPropertyName = ModelNames.CreatePropertyModelName(bindingContext.ModelName, "index");
             var valueProviderResultIndex = bindingContext.ValueProvider.GetValue(indexPropertyName);
@@ -189,7 +199,7 @@ namespace Microsoft.AspNetCore.Mvc.ModelBinding
 
         // Internal for testing.
         internal async Task<CollectionResult> BindComplexCollectionFromIndexes(
-            ModelBroContext bindingContext,
+            ModelBindingContext bindingContext,
             IEnumerable<string> indexNames)
         {
             bool indexNamesIsFinite;

@@ -32,7 +32,7 @@ namespace Microsoft.AspNetCore.Mvc.ModelBinding
         private class Binder : IModelBinder
         {
             /// <inheritdoc />
-            public Task BindModelAsync(ModelBroContext bindingContext)
+            public Task BindModelAsync(ModelBindingContext bindingContext)
             {
                 if (bindingContext == null)
                 {

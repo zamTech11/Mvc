@@ -36,7 +36,7 @@ namespace Microsoft.AspNetCore.Mvc.ModelBinding
         /// <inheritdoc />
         public IList<IModelBinder> ModelBinders { get; }
 
-        public virtual Task BindModelAsync(ModelBroContext bindingContext)
+        public virtual Task BindModelAsync(ModelBindingContext bindingContext)
         {
             if (bindingContext == null)
             {
@@ -46,7 +46,7 @@ namespace Microsoft.AspNetCore.Mvc.ModelBinding
             return RunModelBinders(bindingContext);
         }
 
-        private async Task RunModelBinders(ModelBroContext bindingContext)
+        private async Task RunModelBinders(ModelBindingContext bindingContext)
         {
             RuntimeHelpers.EnsureSufficientExecutionStack();
 
@@ -80,7 +80,7 @@ namespace Microsoft.AspNetCore.Mvc.ModelBinding
                                             entry = new ValidationStateEntry()
                                             {
                                                 Key = result.Key,
-                                                Metadata = bindingContext.ModelMetadata,
+                                                Metadata = bindingContext.Metadata,
                                             };
                                             bindingContext.ValidationState.Add(result.Model, entry);
                                         }

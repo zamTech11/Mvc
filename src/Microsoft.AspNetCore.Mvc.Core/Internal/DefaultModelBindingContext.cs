@@ -3,6 +3,7 @@
 
 using System;
 using System.Collections.Generic;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.ModelBinding.Validation;
 
 namespace Microsoft.AspNetCore.Mvc.ModelBinding
@@ -12,8 +13,12 @@ namespace Microsoft.AspNetCore.Mvc.ModelBinding
     /// </summary>
     public class DefaultModelBindingContext : ModelBindingContext
     {
-        private State _state;
         private readonly Stack<State> _stack = new Stack<State>();
+
+        private OperationBindingContext _operationBindingContext;
+        private ModelStateDictionary _modelState;
+        private ValidationStateDictionary _validationState;
+        private State _state;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="DefaultModelBindingContext"/> class.
@@ -28,52 +33,19 @@ namespace Microsoft.AspNetCore.Mvc.ModelBinding
         /// <param name="operationBindingContext">
         /// The <see cref="OperationBindingContext"/> associated with the binding operation.
         /// </param>
-        /// <param name="metadata"><see cref="ModelMetadata"/> associated with the model.</param>
         /// <param name="bindingInfo"><see cref="BindingInfo"/> associated with the model.</param>
-        /// <param name="modelName">The name of the property or parameter being bound.</param>
         /// <returns>A new instance of <see cref="DefaultModelBindingContext"/>.</returns>
         public static ModelBindingContext CreateBindingContext(
             OperationBindingContext operationBindingContext,
-            ModelMetadata metadata,
-            BindingInfo bindingInfo,
-            string modelName)
+            BindingInfo bindingInfo)
         {
             if (operationBindingContext == null)
             {
                 throw new ArgumentNullException(nameof(operationBindingContext));
             }
 
-            if (metadata == null)
-            {
-                throw new ArgumentNullException(nameof(metadata));
-            }
-
-            if (modelName == null)
-            {
-                throw new ArgumentNullException(nameof(modelName));
-            }
-
-            var binderModelName = bindingInfo?.BinderModelName ?? metadata.BinderModelName;
-            var propertyPredicateProvider =
-                bindingInfo?.PropertyBindingPredicateProvider ?? metadata.PropertyBindingPredicateProvider;
-
             return new DefaultModelBindingContext()
             {
-                BinderModelName = binderModelName,
-                BindingSource = bindingInfo?.BindingSource ?? metadata.BindingSource,
-                BinderType = bindingInfo?.BinderType ?? metadata.BinderType,
-                PropertyFilter = propertyPredicateProvider?.PropertyFilter,
-
-                // We only support fallback to empty prefix in cases where the model name is inferred from
-                // the parameter or property being bound.
-                FallbackToEmptyPrefix = binderModelName == null,
-
-                // Because this is the top-level context, FieldName and ModelName should be the same.
-                FieldName = binderModelName ?? modelName,
-                ModelName = binderModelName ?? modelName,
-
-                IsTopLevelObject = true,
-                ModelMetadata = metadata,
                 ModelState = operationBindingContext.ActionContext.ModelState,
                 OperationBindingContext = operationBindingContext,
                 ValueProvider = operationBindingContext.ValueProvider,
@@ -83,40 +55,14 @@ namespace Microsoft.AspNetCore.Mvc.ModelBinding
         }
 
         /// <inheritdoc />
-        public override NestedScope EnterNestedScope(
-            ModelMetadata modelMetadata,
-            string fieldName,
-            string modelName,
-            object model)
+        public override NestedScope EnterNestedScope(object model, string modelName)
         {
-            if (modelMetadata == null)
-            {
-                throw new ArgumentNullException(nameof(modelMetadata));
-            }
-
-            if (fieldName == null)
-            {
-                throw new ArgumentNullException(nameof(fieldName));
-            }
-
-            if (modelName == null)
-            {
-                throw new ArgumentNullException(nameof(modelName));
-            }
+            var modelPath = ModelNames.CreatePropertyModelName(ModelPath, modelName);
 
             var scope = EnterNestedScope();
 
             Model = model;
-            ModelMetadata = modelMetadata;
-            ModelName = modelName;
-            FieldName = fieldName;
-            BinderModelName = modelMetadata.BinderModelName;
-            BinderType = modelMetadata.BinderType;
-            BindingSource = modelMetadata.BindingSource;
-            PropertyFilter = modelMetadata.PropertyBindingPredicateProvider?.PropertyFilter;
-
-            FallbackToEmptyPrefix = false;
-            IsTopLevelObject = false;
+            ModelPath = modelPath;
 
             return scope;
         }
@@ -140,29 +86,20 @@ namespace Microsoft.AspNetCore.Mvc.ModelBinding
         /// <inheritdoc />
         public override OperationBindingContext OperationBindingContext
         {
-            get { return _state.OperationBindingContext; }
+            get { return _operationBindingContext; }
             set
             {
                 if (value == null)
                 {
                     throw new ArgumentNullException(nameof(value));
                 }
-                _state.OperationBindingContext = value;
+                _operationBindingContext = value;
             }
         }
 
-        /// <inheritdoc />
-        public override string FieldName
+        public override HttpContext HttpContext
         {
-            get { return _state.FieldName; }
-            set
-            {
-                if (value == null)
-                {
-                    throw new ArgumentNullException(nameof(value));
-                }
-                _state.FieldName = value;
-            }
+            get { return OperationBindingContext.HttpContext; }
         }
 
         /// <inheritdoc />
@@ -172,84 +109,24 @@ namespace Microsoft.AspNetCore.Mvc.ModelBinding
             set { _state.Model = value; }
         }
 
-        /// <inheritdoc />
-        public override ModelMetadata ModelMetadata
+        public override string ModelPath
         {
-            get { return _state.ModelMetadata; }
-            set
-            {
-                if (value == null)
-                {
-                    throw new ArgumentNullException(nameof(value));
-                }
-                _state.ModelMetadata = value;
-            }
-        }
-
-        /// <inheritdoc />
-        public override string ModelName
-        {
-            get { return _state.ModelName; }
-            set
-            {
-                if (value == null)
-                {
-                    throw new ArgumentNullException(nameof(value));
-                }
-                _state.ModelName = value;
-            }
+            get { return _state.ModelPath; }
+            set { _state.ModelPath = value; }
         }
 
         /// <inheritdoc />
         public override ModelStateDictionary ModelState
         {
-            get { return _state.ModelState; }
+            get { return _modelState; }
             set
             {
                 if (value == null)
                 {
                     throw new ArgumentNullException(nameof(value));
                 }
-                _state.ModelState = value;
+                _modelState = value;
             }
-        }
-
-        /// <inheritdoc />
-        public override Type ModelType => ModelMetadata?.ModelType;
-
-        /// <inheritdoc />
-        public override string BinderModelName
-        {
-            get { return _state.BinderModelName; }
-            set { _state.BinderModelName = value; }
-        }
-
-        /// <inheritdoc />
-        public override BindingSource BindingSource
-        {
-            get { return _state.BindingSource; }
-            set { _state.BindingSource = value; }
-        }
-
-        /// <inheritdoc />
-        public override Type BinderType
-        {
-            get { return _state.BinderType; }
-            set { _state.BinderType = value; }
-        }
-
-        /// <inheritdoc />
-        public override bool FallbackToEmptyPrefix
-        {
-            get { return _state.FallbackToEmptyPrefix; }
-            set { _state.FallbackToEmptyPrefix = value; }
-        }
-
-        /// <inheritdoc />
-        public override bool IsTopLevelObject
-        {
-            get { return _state.IsTopLevelObject; }
-            set { _state.IsTopLevelObject = value; }
         }
 
         /// <inheritdoc />
@@ -267,17 +144,10 @@ namespace Microsoft.AspNetCore.Mvc.ModelBinding
         }
 
         /// <inheritdoc />
-        public override Func<ModelBindingContext, string, bool> PropertyFilter
-        {
-            get { return _state.PropertyFilter; }
-            set { _state.PropertyFilter = value; }
-        }
-
-        /// <inheritdoc />
         public override ValidationStateDictionary ValidationState
         {
-            get { return _state.ValidationState; }
-            set { _state.ValidationState = value; }
+            get { return _validationState; }
+            set { _validationState = value; }
         }
 
         /// <inheritdoc />
@@ -300,23 +170,9 @@ namespace Microsoft.AspNetCore.Mvc.ModelBinding
 
         private struct State
         {
-            public OperationBindingContext OperationBindingContext;
-            public string FieldName;
+            public string ModelPath;
             public object Model;
-            public ModelMetadata ModelMetadata;
-            public string ModelName;
-
             public IValueProvider ValueProvider;
-            public Func<ModelBindingContext, string, bool> PropertyFilter;
-            public ValidationStateDictionary ValidationState;
-            public ModelStateDictionary ModelState;
-
-            public string BinderModelName;
-            public BindingSource BindingSource;
-            public Type BinderType;
-            public bool FallbackToEmptyPrefix;
-            public bool IsTopLevelObject;
-
             public ModelBindingResult? Result;
         };
     }

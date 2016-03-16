@@ -10,6 +10,7 @@ using System.Reflection;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.Internal;
+using Microsoft.AspNetCore.Mvc.ModelBinding.Metadata;
 using Microsoft.AspNetCore.Mvc.ModelBinding.Validation;
 
 namespace Microsoft.AspNetCore.Mvc.ModelBinding
@@ -30,7 +31,7 @@ namespace Microsoft.AspNetCore.Mvc.ModelBinding
             if (modelType == typeof(IFormFile) || 
                 typeof(IEnumerable<IFormFile>).IsAssignableFrom(modelType))
             {
-                return new Binder();
+                return new Binder(context.Metadata);
             }
 
             return null;
@@ -38,8 +39,20 @@ namespace Microsoft.AspNetCore.Mvc.ModelBinding
 
         private class Binder : IModelBinder
         {
+            private readonly ModelBroMetadata _metadata;
+
+            public Binder(ModelBroMetadata metadata)
+            {
+                if (metadata == null)
+                {
+                    throw new ArgumentNullException(nameof(metadata));
+                }
+
+                _metadata = metadata;
+            }
+
             /// <inheritdoc />
-            public Task BindModelAsync(ModelBroContext bindingContext)
+            public Task BindModelAsync(ModelBindingContext bindingContext)
             {
                 if (bindingContext == null)
                 {
@@ -48,14 +61,14 @@ namespace Microsoft.AspNetCore.Mvc.ModelBinding
 
                 // This method is optimized to use cached tasks when possible and avoid allocating
                 // using Task.FromResult or async state machines.
-                var modelType = bindingContext.ModelType;
+                var modelType = _metadata.Get<ITypeMetadata>().ModelType;
                 var createFileCollection = modelType == typeof(IFormFileCollection) &&
-                    !bindingContext.ModelMetadata.IsReadOnly;
+                    !bindingContext.Metadata.IsReadOnly;
                 if (!createFileCollection && !ModelBindingHelper.CanGetCompatibleCollection<IFormFile>(bindingContext))
                 {
                     // Silently fail and stop other model binders running if unable to create an instance or use the
                     // current instance.
-                    bindingContext.Result = ModelBindingResult.Failed(bindingContext.ModelName);
+                    bindingContext.Result = ModelBindingResult.Failed(_metadata.ModelName);
                     return TaskCache.CompletedTask;
                 }
 
@@ -76,22 +89,18 @@ namespace Microsoft.AspNetCore.Mvc.ModelBinding
             {
                 Debug.Assert(postedFiles != null);
 
-                // If we're at the top level, then use the FieldName (parameter or property name).
-                // This handles the fact that there will be nothing in the ValueProviders for this parameter
-                // and so we'll do the right thing even though we 'fell-back' to the empty prefix.
-                var modelName = bindingContext.IsTopLevelObject
-                    ? bindingContext.BinderModelName ?? bindingContext.FieldName
-                    : bindingContext.ModelName;
+                var modelName = _metadata.ModelName;
+                var modelType = _metadata.Get<ITypeMetadata>().ModelType;
 
                 await GetFormFilesAsync(modelName, bindingContext, postedFiles);
 
                 object value;
-                if (bindingContext.ModelType == typeof(IFormFile))
+                if (modelType == typeof(IFormFile))
                 {
                     if (postedFiles.Count == 0)
                     {
                         // Silently fail if the named file does not exist in the request.
-                        bindingContext.Result = ModelBindingResult.Failed(bindingContext.ModelName);
+                        bindingContext.Result = ModelBindingResult.Failed(modelName);
                         return;
                     }
 
@@ -103,12 +112,11 @@ namespace Microsoft.AspNetCore.Mvc.ModelBinding
                     {
                         // Silently fail if no files match. Will bind to an empty collection (treat empty as a success
                         // case and not reach here) if binding to a top-level object.
-                        bindingContext.Result = ModelBindingResult.Failed(bindingContext.ModelName);
+                        bindingContext.Result = ModelBindingResult.Failed(modelName);
                         return;
                     }
 
                     // Perform any final type mangling needed.
-                    var modelType = bindingContext.ModelType;
                     if (modelType == typeof(IFormFile[]))
                     {
                         Debug.Assert(postedFiles is List<IFormFile>);
@@ -136,7 +144,7 @@ namespace Microsoft.AspNetCore.Mvc.ModelBinding
                     rawValue: null,
                     attemptedValue: null);
 
-                bindingContext.Result = ModelBindingResult.Success(bindingContext.ModelName, value);
+                bindingContext.Result = ModelBindingResult.Success(modelName, value);
             }
 
             private async Task GetFormFilesAsync(
