@@ -121,10 +121,15 @@ namespace Microsoft.AspNetCore.Mvc.Internal
         }
 
         [Theory]
-        //[InlineData("home")]
-        [InlineData("home/index")]
-        //[InlineData("a/b/c")]
-        public async Task Wildcard(string requestPath)
+        [InlineData("a", "{*path}")]
+        [InlineData("a/b", "{*path}")]
+        [InlineData("a/b/c", "{*path}")]
+        [InlineData("a", "a/{*path}")]
+        [InlineData("a/b", "a/{*path}")]
+        [InlineData("a/b/c", "a/{*path}")]
+        [InlineData("a/b", "a/b/{*path}")]
+        [InlineData("a/b/c", "a/b/{*path}")]
+        public async Task Wildcard(string requestPath, string template)
         {
             // Arrange
             var handler = new Mock<IRouter>(MockBehavior.Strict);
@@ -140,7 +145,7 @@ namespace Microsoft.AspNetCore.Mvc.Internal
                 {
                     AttributeRouteInfo = new AttributeRouteInfo()
                     {
-                        Template = "{*path}"
+                        Template = template
                     },
                     RouteConstraints = new List<RouteDataActionConstraint>()
                     {
@@ -176,11 +181,11 @@ namespace Microsoft.AspNetCore.Mvc.Internal
 
             var context = new RouteContext(httpContext);
 
-            Console.WriteLine("Attach now!");
-            while (!System.Diagnostics.Debugger.IsAttached)
-            {
-                System.Threading.Thread.Sleep(500);
-            }
+            //Console.WriteLine("Attach now!");
+            //while (!System.Diagnostics.Debugger.IsAttached)
+            //{
+            //    System.Threading.Thread.Sleep(500);
+            //}
 
             // Act
             await route.RouteAsync(context);
