@@ -883,19 +883,18 @@ namespace Microsoft.AspNetCore.Mvc.Internal
             }
 
             public FilterCursorItem<TFilter, TFilterAsync> GetNextFilter<TFilter, TFilterAsync>()
-                where TFilter : class
-                where TFilterAsync : class
+                where TFilter : class, IFilterMetadata
+                where TFilterAsync : class, IFilterMetadata
             {
                 while (_index < _filters.Length)
                 {
-                    var filter = _filters[_index] as TFilter;
-                    var filterAsync = _filters[_index] as TFilterAsync;
+                    var filter = _filters[_index++];
 
-                    _index += 1;
-
-                    if (filter != null || filterAsync != null)
+                    TFilterAsync filterAsync;
+                    TFilter filterSync = null;
+                    if ((filterAsync = filter as TFilterAsync) != null || (filterSync = filter as TFilter) != null)
                     {
-                        return new FilterCursorItem<TFilter, TFilterAsync>(_index, filter, filterAsync);
+                        return new FilterCursorItem<TFilter, TFilterAsync>(_index, filterSync, filterAsync);
                     }
                 }
 
