@@ -2014,10 +2014,8 @@ namespace Microsoft.AspNetCore.Mvc.Internal
                 .Setup(o => o.RequestServices.GetService(typeof(IOptions<MvcOptions>)))
                 .Returns(optionsAccessor.Object);
 
-            var actionContext = new ActionContext(
-                httpContext: httpContext.Object,
-                routeData: new RouteData(),
-                actionDescriptor: actionDescriptor);
+            var actionContext = new ActionContext(httpContext.Object, new RouteData(), actionDescriptor);
+            var controllerContext = new ControllerContext(actionContext);
 
             var filterProvider = new Mock<IFilterProvider>(MockBehavior.Strict);
             filterProvider
@@ -2050,15 +2048,12 @@ namespace Microsoft.AspNetCore.Mvc.Internal
                 .Returns(-1000);
 
             var invoker = new TestControllerActionInvoker(
-                actionContext,
-                new[] { filterProvider.Object },
+                controllerContext,
                 new MockControllerFactory(this),
-                actionDescriptor,
                 argumentBinder.Object,
-                new IValueProviderFactory[0],
+                new[] { filterProvider.Object },
                 new NullLoggerFactory().CreateLogger<ControllerActionInvoker>(),
-                new DiagnosticListener("Microsoft.AspNetCore"),
-                maxAllowedErrorsInModelState);
+                new DiagnosticListener("Microsoft.AspNetCore"));
             return invoker;
         }
 
@@ -2087,32 +2082,33 @@ namespace Microsoft.AspNetCore.Mvc.Internal
             };
 
             var context = new Mock<HttpContext>();
-            context.SetupGet(c => c.Items)
-                   .Returns(new Dictionary<object, object>());
-            context.Setup(c => c.RequestServices.GetService(typeof(ILoggerFactory)))
-                       .Returns(new NullLoggerFactory());
+            context
+                .SetupGet(c => c.Items)
+                .Returns(new Dictionary<object, object>());
+            context
+                .Setup(c => c.RequestServices.GetService(typeof(ILoggerFactory)))
+                .Returns(new NullLoggerFactory());
 
             var actionContext = new ActionContext(context.Object, new RouteData(), actionDescriptor);
-
+            var controllerContext = new ControllerContext(actionContext);
+                
             var controllerFactory = new Mock<IControllerFactory>();
-            controllerFactory.Setup(c => c.CreateController(It.IsAny<ControllerContext>()))
-                             .Returns(new TestController());
+            controllerFactory
+                .Setup(c => c.CreateController(It.IsAny<ControllerContext>()))
+                .Returns(new TestController());
 
             var metadataProvider = new EmptyModelMetadataProvider();
 
             var invoker = new ControllerActionInvoker(
-                actionContext,
-                CreateFilterCache(),
+                controllerContext,
                 controllerFactory.Object,
-                actionDescriptor,
                 new ControllerArgumentBinder(
                     metadataProvider,
                     TestModelBinderFactory.CreateDefault(metadataProvider),
                     new DefaultObjectValidator(metadataProvider, new IModelValidatorProvider[0])),
-                new IValueProviderFactory[0],
+                CreateFilterCache(),
                 new NullLoggerFactory().CreateLogger<ControllerActionInvoker>(),
-                new DiagnosticListener("Microsoft.AspNetCore"),
-                200);
+                new DiagnosticListener("Microsoft.AspNetCore"));
 
             // Act
             await invoker.InvokeAsync();
@@ -2226,25 +2222,19 @@ namespace Microsoft.AspNetCore.Mvc.Internal
         private class TestControllerActionInvoker : ControllerActionInvoker
         {
             public TestControllerActionInvoker(
-                ActionContext actionContext,
-                IFilterProvider[] filterProviders,
+                ControllerContext controllerContext,
                 MockControllerFactory controllerFactory,
-                ControllerActionDescriptor descriptor,
-                IControllerArgumentBinder argumentBinder,
-                IReadOnlyList<IValueProviderFactory> valueProviderFactories,
+                IControllerArgumentBinder controllerArgumentBinder,
+                IFilterProvider[] filterProviders,
                 ILogger logger,
-                DiagnosticSource diagnosticSource,
-                int maxAllowedErrorsInModelState)
+                DiagnosticSource diagnosticSource)
                 : base(
-                      actionContext,
-                      CreateFilterCache(filterProviders),
+                      controllerContext,
                       controllerFactory,
-                      descriptor,
-                      argumentBinder,
-                      valueProviderFactories,
+                      controllerArgumentBinder,
+                      CreateFilterCache(filterProviders),
                       logger,
-                      diagnosticSource,
-                      maxAllowedErrorsInModelState)
+                      diagnosticSource)
             {
                 ControllerFactory = controllerFactory;
             }
