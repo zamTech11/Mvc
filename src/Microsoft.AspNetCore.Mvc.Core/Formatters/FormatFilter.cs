@@ -60,7 +60,7 @@ namespace Microsoft.AspNetCore.Mvc.Formatters
                 throw new ArgumentNullException(nameof(context));
             }
 
-            var format = GetFormat(context);
+            var format = GetFormat(context.ActionContext);
             if (format == null)
             {
                 // no format specified by user, so the filter is muted
@@ -128,7 +128,7 @@ namespace Microsoft.AspNetCore.Mvc.Formatters
                 throw new ArgumentNullException(nameof(context));
             }
 
-            var format = GetFormat(context);
+            var format = GetFormat(context.ActionContext);
             if (format == null)
             {
                 // no format specified by user, so the filter is muted

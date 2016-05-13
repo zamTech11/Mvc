@@ -41,9 +41,7 @@ namespace Microsoft.AspNetCore.Mvc.Core.Test
 
         private static ResourceExecutingContext CreateResourceExecutingContext(IFilterMetadata[] filters)
         {
-            return new ResourceExecutingContext(
-                CreateActionContext(),
-                filters);
+            return new TestResourceExecutingContext(CreateActionContext(), filters);
         }
 
         private static ActionContext CreateActionContext()

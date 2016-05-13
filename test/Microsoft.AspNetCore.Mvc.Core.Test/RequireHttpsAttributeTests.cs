@@ -199,10 +199,10 @@ namespace Microsoft.AspNetCore.Mvc
             }
         }
 
-        private static AuthorizationFilterContext CreateAuthorizationContext(HttpContext ctx)
+        private static AuthorizationFilterContext CreateAuthorizationContext(HttpContext httpContext)
         {
-            var actionContext = new ActionContext(ctx, new RouteData(), new ActionDescriptor());
-            return new AuthorizationFilterContext(actionContext, new IFilterMetadata[0]);
+            var actionContext = new ActionContext(httpContext, new RouteData(), new ActionDescriptor());
+            return new TestAuthorizationFilterContext(actionContext, new IFilterMetadata[0]);
         }
 
         private static IServiceProvider CreateServices(int? sslPort = null)

@@ -38,11 +38,11 @@ namespace Microsoft.AspNetCore.Mvc.WebApiCompatShim
                                 new RouteData(),
                                 Mock.Of<ActionDescriptor>());
 
-            var context = new ActionExecutingContext(
+            var context = new TestActionExecutingContext(
                 actionContext,
                 filters: new List<IFilterMetadata>(),
-                actionArguments: new Dictionary<string, object>(),
-                controller: new object());
+                controller: new object(),
+                actionArguments: new Dictionary<string, object>());
 
             // Act
             filter.OnActionExecuting(context);
@@ -60,14 +60,15 @@ namespace Microsoft.AspNetCore.Mvc.WebApiCompatShim
             httpContext.Request.Method = "GET";
 
             var actionContext = new ActionContext(
-                                httpContext,
-                                new RouteData(),
-                                Mock.Of<ActionDescriptor>());
+                httpContext,
+                new RouteData(),
+                Mock.Of<ActionDescriptor>());
 
-            var context = new ActionExecutedContext(
+            var context = new TestActionExecutedContext(
                 actionContext,
                 filters: new List<IFilterMetadata>(),
-                controller: new object());
+                controller: new object(),
+                result: new EmptyResult());
 
             context.Exception = new HttpResponseException(HttpStatusCode.BadRequest);
 

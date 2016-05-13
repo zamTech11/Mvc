@@ -406,11 +406,11 @@ namespace Microsoft.AspNetCore.Mvc.Internal
 
         private ActionExecutingContext GetActionExecutingContext(List<IFilterMetadata> filters = null)
         {
-            return new ActionExecutingContext(
+            return new TestActionExecutingContext(
                 new ActionContext(new DefaultHttpContext(), new RouteData(), new ActionDescriptor()),
                 filters ?? new List<IFilterMetadata>(),
-                new Dictionary<string, object>(),
-                new object());
+                new object(),
+                new Dictionary<string, object>());
         }
     }
 }

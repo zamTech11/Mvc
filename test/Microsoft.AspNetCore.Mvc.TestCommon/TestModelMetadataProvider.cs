@@ -23,7 +23,7 @@ namespace Microsoft.AspNetCore.Mvc.ModelBinding
                 new DataAnnotationsMetadataProvider(),
                 new DataMemberRequiredBindingMetadataProvider(),
             };
-
+            
             var compositeDetailsProvider = new DefaultCompositeMetadataDetailsProvider(detailsProviders);
             return new DefaultModelMetadataProvider(compositeDetailsProvider);
         }

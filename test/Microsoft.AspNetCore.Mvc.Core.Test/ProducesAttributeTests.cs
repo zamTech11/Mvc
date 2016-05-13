@@ -157,16 +157,16 @@ namespace Microsoft.AspNetCore.Mvc.Test
 
         private static ResultExecutedContext CreateResultExecutedContext(ResultExecutingContext context)
         {
-            return new ResultExecutedContext(context, context.Filters, context.Result, context.Controller);
+            return new TestResultExecutedContext(context);
         }
 
         private static ResultExecutingContext CreateResultExecutingContext(IFilterMetadata[] filters)
         {
-            return new ResultExecutingContext(
+            return new TestResultExecutingContext(
                 CreateActionContext(),
                 filters,
-                new ObjectResult("Some Value"),
-                controller: new object());
+                controller: new object(),
+                result: new ObjectResult("Some Value"));
         }
 
         private static ActionContext CreateActionContext()

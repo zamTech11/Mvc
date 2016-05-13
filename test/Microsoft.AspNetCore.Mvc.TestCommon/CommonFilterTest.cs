@@ -195,33 +195,30 @@ namespace Microsoft.AspNetCore.Mvc.Filters
 
         private static ActionExecutingContext CreateActionExecutingContext(IFilterMetadata filter)
         {
-            return new ActionExecutingContext(
+            return new TestActionExecutingContext(
                 CreateActionContext(),
                 new IFilterMetadata[] { filter, },
-                new Dictionary<string, object>(),
-                controller: new object());
+                controller: new object(),
+                actionArguments: new Dictionary<string, object>());
         }
 
         private static ActionExecutedContext CreateActionExecutedContext(ActionExecutingContext context)
         {
-            return new ActionExecutedContext(context, context.Filters, context.Controller)
-            {
-                Result = context.Result,
-            };
+            return new TestActionExecutedContext(context, new NoOpResult());
         }
 
         private static ResultExecutingContext CreateResultExecutingContext(IFilterMetadata filter)
         {
-            return new ResultExecutingContext(
+            return new TestResultExecutingContext(
                 CreateActionContext(),
                 new IFilterMetadata[] { filter, },
-                new NoOpResult(),
-                controller: new object());
+                controller: new object(),
+                result: new NoOpResult());
         }
 
         private static ResultExecutedContext CreateResultExecutedContext(ResultExecutingContext context)
         {
-            return new ResultExecutedContext(context, context.Filters, context.Result, context.Controller);
+            return new TestResultExecutedContext(context);
         }
 
         private static ActionContext CreateActionContext()

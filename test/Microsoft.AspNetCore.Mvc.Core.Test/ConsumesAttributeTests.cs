@@ -309,7 +309,7 @@ namespace Microsoft.AspNetCore.Mvc
             };
             var actionContext = new ActionContext(httpContext, new RouteData(), actionWithConstraint);
 
-            var resourceExecutingContext = new ResourceExecutingContext(actionContext, new[] { consumesFilter });
+            var resourceExecutingContext = new TestResourceExecutingContext(actionContext, new[] { consumesFilter });
 
             // Act
             consumesFilter.OnResourceExecuting(resourceExecutingContext);
@@ -336,7 +336,7 @@ namespace Microsoft.AspNetCore.Mvc
             };
             var actionContext = new ActionContext(httpContext, new RouteData(), actionWithConstraint);
 
-            var resourceExecutingContext = new ResourceExecutingContext(actionContext, new[] { consumesFilter });
+            var resourceExecutingContext = new TestResourceExecutingContext(actionContext, new[] { consumesFilter });
 
             // Act
             consumesFilter.OnResourceExecuting(resourceExecutingContext);
@@ -361,7 +361,7 @@ namespace Microsoft.AspNetCore.Mvc
                     new List<FilterDescriptor>() { new FilterDescriptor(consumesFilter, FilterScope.Action) }
             };
             var actionContext = new ActionContext(httpContext, new RouteData(), actionWithConstraint);
-            var resourceExecutingContext = new ResourceExecutingContext(actionContext, new[] { consumesFilter });
+            var resourceExecutingContext = new TestResourceExecutingContext(actionContext, new[] { consumesFilter });
 
             // Act
             consumesFilter.OnResourceExecuting(resourceExecutingContext);

@@ -37,7 +37,7 @@ namespace Microsoft.AspNetCore.Mvc.ViewFeatures.Internal
             var actionContext = new ActionContext(new DefaultHttpContext(), new RouteData(), new ActionDescriptor());
             actionContext.HttpContext.Request.Method = httpMethod;
 
-            var context = new AuthorizationFilterContext(actionContext, new[] { filter });
+            var context = new TestAuthorizationFilterContext(actionContext, new[] { filter });
 
             // Act
             await filter.OnAuthorizationAsync(context);
@@ -61,7 +61,7 @@ namespace Microsoft.AspNetCore.Mvc.ViewFeatures.Internal
             var actionContext = new ActionContext(new DefaultHttpContext(), new RouteData(), new ActionDescriptor());
             actionContext.HttpContext.Request.Method = "POST";
 
-            var context = new AuthorizationFilterContext(actionContext, new IFilterMetadata[]
+            var context = new TestAuthorizationFilterContext(actionContext, new IFilterMetadata[]
             {
                 filter,
                 new IgnoreAntiforgeryTokenAttribute(),

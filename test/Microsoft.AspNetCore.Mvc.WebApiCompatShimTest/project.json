@@ -5,11 +5,16 @@
   "dependencies": {
     "dotnet-test-xunit": "1.0.0-*",
     "Microsoft.NETCore.Platforms": "1.0.1-*",
-    "Microsoft.AspNetCore.Http": "1.0.0-*",
+    "Microsoft.AspNetCore.Mvc": "1.0.0-*",
+    "Microsoft.AspNetCore.Mvc.Formatters.Xml": "1.0.0-*",
+    "Microsoft.AspNetCore.Mvc.TestCommon": {
+      "version": "1.0.0-*",
+      "type": "build"
+    },
     "Microsoft.AspNetCore.Mvc.WebApiCompatShim": "1.0.0-*",
     "Microsoft.AspNetCore.Testing": "1.0.0-*",
-    "Microsoft.Extensions.Logging.Testing": "1.0.0-*",
     "Microsoft.Extensions.DependencyInjection": "1.0.0-*",
+    "Microsoft.Extensions.Logging.Testing": "1.0.0-*",
     "xunit": "2.1.0"
   },
   "testRunner": "xunit",
@@ -33,10 +38,6 @@
       }
     },
     "net451": {
-      "frameworkAssemblies": {
-        "System.Reflection": "",
-        "System.Threading.Tasks": ""
-      },
       "dependencies": {
         "Moq": "4.2.1312.1622"
       }

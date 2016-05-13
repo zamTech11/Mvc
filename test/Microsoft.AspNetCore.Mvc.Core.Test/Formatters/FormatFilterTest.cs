@@ -77,17 +77,15 @@ namespace Microsoft.AspNetCore.Mvc.Formatters
             var data = new RouteData();
             data.Values.Add("format", "json");
 
-            var ac = new ActionContext(httpContext.Object, data, new ActionDescriptor());
+            var actionContext = new ActionContext(httpContext.Object, data, new ActionDescriptor());
 
-            var resultExecutingContext = new ResultExecutingContext(
-                ac,
-                new IFilterMetadata[] { },
-                new ObjectResult("Hello!"),
-                controller: new object());
+            var resultExecutingContext = new TestResultExecutingContext(
+                actionContext,
+                new IFilterMetadata[0],
+                controller: new object(),
+                result: new ObjectResult("Hello!"));
 
-            var resourceExecutingContext = new ResourceExecutingContext(
-                ac,
-                new IFilterMetadata[] { });
+            var resourceExecutingContext = new TestResourceExecutingContext(actionContext, new IFilterMetadata[0]);
 
             var filter = new FormatFilter(mockObjects.OptionsManager);
 
@@ -296,10 +294,10 @@ namespace Microsoft.AspNetCore.Mvc.Formatters
             var filter = new FormatFilter(mockObjects.OptionsManager);
 
             // Act
-            var format = filter.GetFormat(context);
+            var format = filter.GetFormat(context.ActionContext);
 
             // Assert
-            Assert.Equal(expected, filter.GetFormat(context));
+            Assert.Equal(expected, filter.GetFormat(context.ActionContext));
         }
 
         [Fact]
@@ -312,17 +310,17 @@ namespace Microsoft.AspNetCore.Mvc.Formatters
             httpContext.Setup(c => c.Response).Returns(new Mock<HttpResponse>().Object);
             httpContext.Setup(c => c.Request.Query["format"]).Returns("json");
             var actionContext = new ActionContext(httpContext.Object, new RouteData(), new ActionDescriptor());
+
             var objectResult = new ObjectResult("Hello!");
             objectResult.ContentTypes.Add(new MediaTypeHeaderValue("application/foo"));
-            var resultExecutingContext = new ResultExecutingContext(
-                actionContext,
-                new IFilterMetadata[] { },
-                objectResult,
-                controller: new object());
 
-            var resourceExecutingContext = new ResourceExecutingContext(
+            var resultExecutingContext = new TestResultExecutingContext(
                 actionContext,
-                new IFilterMetadata[] { });
+                new IFilterMetadata[0],
+                controller: new object(),
+                result: objectResult);
+
+            var resourceExecutingContext = new TestResourceExecutingContext(actionContext, new IFilterMetadata[0]);
 
             var filter = new FormatFilter(mockObjects.OptionsManager);
 
@@ -348,15 +346,14 @@ namespace Microsoft.AspNetCore.Mvc.Formatters
             httpContext.Setup(c => c.Response).Returns(response.Object);
             httpContext.Setup(c => c.Request.Query["format"]).Returns("json");
             var actionContext = new ActionContext(httpContext.Object, new RouteData(), new ActionDescriptor());
-            var resultExecutingContext = new ResultExecutingContext(
-                actionContext,
-                new IFilterMetadata[] { },
-                new ObjectResult("Hello!"),
-                controller: new object());
 
-            var resourceExecutingContext = new ResourceExecutingContext(
+            var resultExecutingContext = new TestResultExecutingContext(
                 actionContext,
-                new IFilterMetadata[] { });
+                new IFilterMetadata[0],
+                controller: new object(),
+                result: new ObjectResult("Hello!"));
+
+            var resourceExecutingContext = new TestResourceExecutingContext(actionContext, new IFilterMetadata[0]);
 
             var filter = new FormatFilter(mockObjects.OptionsManager);
 
@@ -390,19 +387,16 @@ namespace Microsoft.AspNetCore.Mvc.Formatters
 
             public ResourceExecutingContext CreateResourceExecutingContext(IFilterMetadata[] filters)
             {
-                var context = new ResourceExecutingContext(
-                    MockActionContext,
-                    filters);
-                return context;
+                return new TestResourceExecutingContext(MockActionContext, filters);
             }
 
             public ResultExecutingContext CreateResultExecutingContext()
             {
-                return new ResultExecutingContext(
+                return new TestResultExecutingContext(
                     MockActionContext,
-                    new IFilterMetadata[] { },
-                    new ObjectResult("Some Value"),
-                    controller: new object());
+                    new IFilterMetadata[0],
+                    controller: new object(),
+                    result: new ObjectResult("Some Value"));
             }
 
             private ActionContext CreateMockActionContext(

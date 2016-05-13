@@ -277,7 +277,7 @@ namespace Microsoft.AspNetCore.Mvc.Authorization
             Assert.NotNull(authorizationContext.Result);
         }
 
-        private Filters.AuthorizationFilterContext GetAuthorizationContext(
+        private AuthorizationFilterContext GetAuthorizationContext(
             Action<ServiceCollection> registerServices,
             bool anonymous = false)
         {
@@ -334,7 +334,7 @@ namespace Microsoft.AspNetCore.Mvc.Authorization
                 routeData: new RouteData(),
                 actionDescriptor: new ActionDescriptor());
 
-            var authorizationContext = new Filters.AuthorizationFilterContext(
+            var authorizationContext = new TestAuthorizationFilterContext(
                 actionContext,
                 Enumerable.Empty<IFilterMetadata>().ToList()
             );

@@ -34,7 +34,7 @@ namespace Microsoft.AspNetCore.Mvc.Cors
 
             // Act
             await filter.OnAuthorizationAsync(authorizationContext);
-            await authorizationContext.Result.ExecuteResultAsync(authorizationContext);
+            await authorizationContext.Result.ExecuteResultAsync(authorizationContext.ActionContext);
 
             // Assert
             var response = authorizationContext.HttpContext.Response;
@@ -63,7 +63,7 @@ namespace Microsoft.AspNetCore.Mvc.Cors
 
             // Act
             await filter.OnAuthorizationAsync(authorizationContext);
-            await authorizationContext.Result.ExecuteResultAsync(authorizationContext);
+            await authorizationContext.Result.ExecuteResultAsync(authorizationContext.ActionContext);
 
             // Assert
             Assert.Equal(200, authorizationContext.HttpContext.Response.StatusCode);
@@ -84,7 +84,7 @@ namespace Microsoft.AspNetCore.Mvc.Cors
 
             // Act
             await filter.OnAuthorizationAsync(authorizationContext);
-            await authorizationContext.Result.ExecuteResultAsync(authorizationContext);
+            await authorizationContext.Result.ExecuteResultAsync(authorizationContext.ActionContext);
 
             // Assert
             var response = authorizationContext.HttpContext.Response;
@@ -155,10 +155,9 @@ namespace Microsoft.AspNetCore.Mvc.Cors
                 routeData: new RouteData(),
                 actionDescriptor: new ActionDescriptor() { FilterDescriptors = filterDescriptors });
 
-            var authorizationContext = new AuthorizationFilterContext(
+            var authorizationContext = new TestAuthorizationFilterContext(
                 actionContext,
-                filterDescriptors.Select(filter => filter.Filter).ToList()
-            );
+                filterDescriptors.Select(filter => filter.Filter).ToList());
 
             return authorizationContext;
         }

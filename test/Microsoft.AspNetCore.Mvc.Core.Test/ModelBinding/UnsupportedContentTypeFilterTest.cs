@@ -17,7 +17,7 @@ namespace Microsoft.AspNetCore.Mvc.ModelBinding
         public void OnActionExecuting_ChangesActionResult_IfUnsupportedContentTypeExceptionIsFoundOnModelState()
         {
             // Arrange
-            var context = new ActionExecutingContext(
+            var context = new TestActionExecutingContext(
                 new ActionContext
                 {
                     HttpContext = new DefaultHttpContext(),
@@ -25,8 +25,8 @@ namespace Microsoft.AspNetCore.Mvc.ModelBinding
                     ActionDescriptor = new ActionDescriptor()
                 },
                 new List<IFilterMetadata>(),
-                new Dictionary<string, object>(),
-                new object());
+                new object(),
+                new Dictionary<string, object>());
 
             var modelMetadata = new EmptyModelMetadataProvider()
                 .GetMetadataForType(typeof(int));
@@ -50,7 +50,7 @@ namespace Microsoft.AspNetCore.Mvc.ModelBinding
         public void OnActionExecuting_DoesNotChangeActionResult_IfOtherErrorsAreFoundOnModelState()
         {
             // Arrange
-            var context = new ActionExecutingContext(
+            var context = new TestActionExecutingContext(
                 new ActionContext
                 {
                     HttpContext = new DefaultHttpContext(),
@@ -58,8 +58,8 @@ namespace Microsoft.AspNetCore.Mvc.ModelBinding
                     ActionDescriptor = new ActionDescriptor()
                 },
                 new List<IFilterMetadata>(),
-                new Dictionary<string, object>(),
-                new object());
+                new object(),
+                new Dictionary<string, object>());
 
             context.ModelState.AddModelError("person.body", "Some error");
 
@@ -76,7 +76,7 @@ namespace Microsoft.AspNetCore.Mvc.ModelBinding
         public void OnActionExecuting_DoesNotChangeActionResult_IfModelStateIsValid()
         {
             // Arrange
-            var context = new ActionExecutingContext(
+            var context = new TestActionExecutingContext(
                 new ActionContext
                 {
                     HttpContext = new DefaultHttpContext(),
@@ -84,8 +84,8 @@ namespace Microsoft.AspNetCore.Mvc.ModelBinding
                     ActionDescriptor = new ActionDescriptor()
                 },
                 new List<IFilterMetadata>(),
-                new Dictionary<string, object>(),
-                new object());
+                new object(),
+                new Dictionary<string, object>());
 
             var filter = new UnsupportedContentTypeFilter();
 
@@ -100,7 +100,7 @@ namespace Microsoft.AspNetCore.Mvc.ModelBinding
         public void OnActionExecuting_DoesNotChangeActionResult_IfOtherExceptionsAreFoundOnModelState()
         {
             // Arrange
-            var context = new ActionExecutingContext(
+            var context = new TestActionExecutingContext(
                 new ActionContext
                 {
                     HttpContext = new DefaultHttpContext(),
@@ -108,8 +108,8 @@ namespace Microsoft.AspNetCore.Mvc.ModelBinding
                     ActionDescriptor = new ActionDescriptor()
                 },
                 new List<IFilterMetadata>(),
-                new Dictionary<string, object>(),
-                new object());
+                new object(),
+                new Dictionary<string, object>());
 
             var modelMetadata = new EmptyModelMetadataProvider()
                 .GetMetadataForType(typeof(int));

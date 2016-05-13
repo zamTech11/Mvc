@@ -328,11 +328,11 @@ namespace Microsoft.AspNetCore.Mvc
 
         private ActionExecutingContext GetActionExecutingContext(params IFilterMetadata[] filters)
         {
-            return new ActionExecutingContext(
+            return new TestActionExecutingContext(
                 new ActionContext(new DefaultHttpContext(), new RouteData(), new ActionDescriptor()),
                 filters?.ToList() ?? new List<IFilterMetadata>(),
-                new Dictionary<string, object>(),
-                new object());
+                new object(),
+                new Dictionary<string, object>());
         }
 
         private void AssertHeaderEquals(string expected, string actual)

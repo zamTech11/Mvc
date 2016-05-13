@@ -28,7 +28,7 @@ namespace Microsoft.AspNetCore.Mvc.ViewFeatures.Internal
 
             var filter = new SaveTempDataFilter(tempDataFactory.Object);
 
-            var context = new ResourceExecutedContext(
+            var context = new TestResourceExecutedContext(
                 new ActionContext(new DefaultHttpContext(), new RouteData(), new ActionDescriptor()),
                 new IFilterMetadata[] { });
 
@@ -55,11 +55,11 @@ namespace Microsoft.AspNetCore.Mvc.ViewFeatures.Internal
 
             var filter = new SaveTempDataFilter(tempDataFactory.Object);
 
-            var context = new ResultExecutedContext(
+            var context = new TestResultExecutedContext(
                 new ActionContext(new DefaultHttpContext(), new RouteData(), new ActionDescriptor()),
                 new IFilterMetadata[] { },
-                new Mock<IKeepTempDataResult>().Object,
-                new object());
+                new object(),
+                new Mock<IKeepTempDataResult>().Object);
 
             // Act
             filter.OnResultExecuted(context);
@@ -81,11 +81,11 @@ namespace Microsoft.AspNetCore.Mvc.ViewFeatures.Internal
 
             var filter = new SaveTempDataFilter(tempDataFactory.Object);
 
-            var context = new ResultExecutedContext(
+            var context = new TestResultExecutedContext(
                 new ActionContext(new DefaultHttpContext(), new RouteData(), new ActionDescriptor()),
                 new IFilterMetadata[] { },
-                new Mock<IActionResult>().Object,
-                new object());
+                new object(),
+                new Mock<IActionResult>().Object);
 
             // Act
             filter.OnResultExecuted(context);

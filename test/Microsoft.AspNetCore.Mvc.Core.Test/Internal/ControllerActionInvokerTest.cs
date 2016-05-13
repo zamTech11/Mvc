@@ -579,13 +579,15 @@ namespace Microsoft.AspNetCore.Mvc.Internal
         public async Task InvokeAction_InvokesAsyncActionFilter_ShortCircuit_WithoutResult()
         {
             // Arrange
-            ActionExecutedContext context = null;
-
             var actionFilter1 = new Mock<IActionFilter>(MockBehavior.Strict);
             actionFilter1.Setup(f => f.OnActionExecuting(It.IsAny<ActionExecutingContext>())).Verifiable();
             actionFilter1
                 .Setup(f => f.OnActionExecuted(It.IsAny<ActionExecutedContext>()))
-                .Callback<ActionExecutedContext>(c => context = c)
+                .Callback<ActionExecutedContext>(context =>
+                {
+                    Assert.True(context.Canceled);
+                    Assert.Null(context.Result);
+                })
                 .Verifiable();
 
             var actionFilter2 = new Mock<IAsyncActionFilter>(MockBehavior.Strict);
@@ -625,9 +627,6 @@ namespace Microsoft.AspNetCore.Mvc.Internal
 
             resultFilter.Verify(f => f.OnResultExecuting(It.IsAny<ResultExecutingContext>()), Times.Once());
             resultFilter.Verify(f => f.OnResultExecuted(It.IsAny<ResultExecutedContext>()), Times.Once());
-
-            Assert.True(context.Canceled);
-            Assert.Null(context.Result);
         }
 
         [Fact]
@@ -661,19 +660,20 @@ namespace Microsoft.AspNetCore.Mvc.Internal
         public async Task InvokeAction_InvokesActionFilter_WithExceptionThrownByAction()
         {
             // Arrange
-            ActionExecutedContext context = null;
+            Exception exception = null;
 
             var filter = new Mock<IActionFilter>(MockBehavior.Strict);
             filter.Setup(f => f.OnActionExecuting(It.IsAny<ActionExecutingContext>())).Verifiable();
             filter
                 .Setup(f => f.OnActionExecuted(It.IsAny<ActionExecutedContext>()))
-                .Callback<ActionExecutedContext>(c =>
+                .Callback<ActionExecutedContext>(context =>
                 {
-                    context = c;
+                    exception = context.Exception;
 
                     // Handle the exception so the test doesn't throw.
-                    Assert.False(c.ExceptionHandled);
-                    c.ExceptionHandled = true;
+                    Assert.False(context.ExceptionHandled);
+                    Assert.Null(context.Result);
+                    context.ExceptionHandled = true;
                 })
                 .Verifiable();
 
@@ -686,28 +686,28 @@ namespace Microsoft.AspNetCore.Mvc.Internal
             filter.Verify(f => f.OnActionExecuting(It.IsAny<ActionExecutingContext>()), Times.Once());
             filter.Verify(f => f.OnActionExecuted(It.IsAny<ActionExecutedContext>()), Times.Once());
 
-            Assert.Same(_actionException, context.Exception);
-            Assert.Null(context.Result);
+            Assert.Same(_actionException, exception);
         }
 
         [Fact]
         public async Task InvokeAction_InvokesActionFilter_WithExceptionThrownByActionFilter()
         {
             // Arrange
-            var exception = new DataMisalignedException();
-            ActionExecutedContext context = null;
+            var expectedException = new DataMisalignedException();
+            Exception exception = null;
 
             var filter1 = new Mock<IActionFilter>(MockBehavior.Strict);
             filter1.Setup(f => f.OnActionExecuting(It.IsAny<ActionExecutingContext>())).Verifiable();
             filter1
                 .Setup(f => f.OnActionExecuted(It.IsAny<ActionExecutedContext>()))
-                .Callback<ActionExecutedContext>(c =>
+                .Callback<ActionExecutedContext>(context =>
                 {
-                    context = c;
+                    exception = context.Exception;
 
                     // Handle the exception so the test doesn't throw.
-                    Assert.False(c.ExceptionHandled);
-                    c.ExceptionHandled = true;
+                    Assert.False(context.ExceptionHandled);
+                    Assert.Same(_result, context.Result);
+                    context.ExceptionHandled = true;
                 })
                 .Verifiable();
 
@@ -715,7 +715,7 @@ namespace Microsoft.AspNetCore.Mvc.Internal
             filter2.Setup(f => f.OnActionExecuting(It.IsAny<ActionExecutingContext>())).Verifiable();
             filter2
                 .Setup(f => f.OnActionExecuted(It.IsAny<ActionExecutedContext>()))
-                .Callback<ActionExecutedContext>(c => { throw exception; })
+                .Callback<ActionExecutedContext>(c => { throw expectedException; })
                 .Verifiable();
 
             var invoker = CreateInvoker(new[] { filter1.Object, filter2.Object });
@@ -729,26 +729,27 @@ namespace Microsoft.AspNetCore.Mvc.Internal
 
             filter2.Verify(f => f.OnActionExecuting(It.IsAny<ActionExecutingContext>()), Times.Once());
 
-            Assert.Same(exception, context.Exception);
-            Assert.Null(context.Result);
+            Assert.Same(expectedException, exception);
         }
 
         [Fact]
         public async Task InvokeAction_InvokesAsyncActionFilter_WithExceptionThrownByActionFilter()
         {
             // Arrange
-            var exception = new DataMisalignedException();
-            ActionExecutedContext context = null;
+            var expectedException = new DataMisalignedException();
+            Exception exception = null;
 
             var filter1 = new Mock<IAsyncActionFilter>(MockBehavior.Strict);
             filter1
                 .Setup(f => f.OnActionExecutionAsync(It.IsAny<ActionExecutingContext>(), It.IsAny<ActionExecutionDelegate>()))
                 .Returns<ActionExecutingContext, ActionExecutionDelegate>(async (c, next) =>
                 {
-                    context = await next();
+                    var context = await next();
+                    exception = context.Exception;
 
                     // Handle the exception so the test doesn't throw.
                     Assert.False(context.ExceptionHandled);
+                    Assert.Same(_result, context.Result);
                     context.ExceptionHandled = true;
                 })
                 .Verifiable();
@@ -757,7 +758,7 @@ namespace Microsoft.AspNetCore.Mvc.Internal
             filter2.Setup(f => f.OnActionExecuting(It.IsAny<ActionExecutingContext>())).Verifiable();
             filter2
                 .Setup(f => f.OnActionExecuted(It.IsAny<ActionExecutedContext>()))
-                .Callback<ActionExecutedContext>(c => { throw exception; })
+                .Callback<ActionExecutedContext>(c => { throw expectedException; })
                 .Verifiable();
 
             var invoker = CreateInvoker(new IFilterMetadata[] { filter1.Object, filter2.Object });
@@ -772,8 +773,8 @@ namespace Microsoft.AspNetCore.Mvc.Internal
 
             filter2.Verify(f => f.OnActionExecuting(It.IsAny<ActionExecutingContext>()), Times.Once());
 
-            Assert.Same(exception, context.Exception);
-            Assert.Null(context.Result);
+            Assert.Same(expectedException, exception);
+            
         }
 
         [Fact]
@@ -1046,7 +1047,6 @@ namespace Microsoft.AspNetCore.Mvc.Internal
         public async Task InvokeAction_InvokesResultFilter_WithExceptionThrownByResult()
         {
             // Arrange
-            ResultExecutedContext context = null;
             var exception = new DataMisalignedException();
 
             var result = new Mock<IActionResult>(MockBehavior.Strict);
@@ -1063,13 +1063,13 @@ namespace Microsoft.AspNetCore.Mvc.Internal
 
             filter
                 .Setup(f => f.OnResultExecuted(It.IsAny<ResultExecutedContext>()))
-                .Callback<ResultExecutedContext>(c =>
+                .Callback<ResultExecutedContext>(context =>
                 {
-                    context = c;
+                    Assert.False(context.ExceptionHandled);
+                    Assert.Same(exception, context.Exception);
 
                     // Handle the exception
-                    Assert.False(c.ExceptionHandled);
-                    c.ExceptionHandled = true;
+                    context.ExceptionHandled = true;
                 })
                 .Verifiable();
 
@@ -1079,8 +1079,6 @@ namespace Microsoft.AspNetCore.Mvc.Internal
             await invoker.InvokeAsync();
 
             // Assert
-            Assert.Same(exception, context.Exception);
-
             result.Verify(r => r.ExecuteResultAsync(It.IsAny<ActionContext>()), Times.Once());
 
             filter.Verify(f => f.OnResultExecuting(It.IsAny<ResultExecutingContext>()), Times.Once());
@@ -1091,7 +1089,6 @@ namespace Microsoft.AspNetCore.Mvc.Internal
         public async Task InvokeAction_InvokesAsyncResultFilter_WithExceptionThrownByResult()
         {
             // Arrange
-            ResultExecutedContext context = null;
             var exception = new DataMisalignedException();
 
             var result = new Mock<IActionResult>(MockBehavior.Strict);
@@ -1107,10 +1104,11 @@ namespace Microsoft.AspNetCore.Mvc.Internal
                 {
                     c.Result = result.Object;
 
-                    context = await next();
+                    var context = await next();
+                    Assert.Same(exception, context.Exception);
+                    Assert.False(context.ExceptionHandled);
 
                     // Handle the exception
-                    Assert.False(context.ExceptionHandled);
                     context.ExceptionHandled = true;
                 })
                 .Verifiable();
@@ -1121,8 +1119,6 @@ namespace Microsoft.AspNetCore.Mvc.Internal
             await invoker.InvokeAsync();
 
             // Assert
-            Assert.Same(exception, context.Exception);
-
             result.Verify(r => r.ExecuteResultAsync(It.IsAny<ActionContext>()), Times.Once());
 
             filter.Verify(
@@ -1134,61 +1130,18 @@ namespace Microsoft.AspNetCore.Mvc.Internal
         public async Task InvokeAction_InvokesResultFilter_WithExceptionThrownByResultFilter()
         {
             // Arrange
-            ResultExecutedContext context = null;
             var exception = new DataMisalignedException();
 
             var resultFilter1 = new Mock<IResultFilter>(MockBehavior.Strict);
             resultFilter1.Setup(f => f.OnResultExecuting(It.IsAny<ResultExecutingContext>())).Verifiable();
             resultFilter1
                 .Setup(f => f.OnResultExecuted(It.IsAny<ResultExecutedContext>()))
-                .Callback<ResultExecutedContext>(c =>
+                .Callback<ResultExecutedContext>(context =>
                 {
-                    context = c;
-
-                    // Handle the exception
-                    Assert.False(c.ExceptionHandled);
-                    c.ExceptionHandled = true;
-                })
-                .Verifiable();
-
-            var resultFilter2 = new Mock<IResultFilter>(MockBehavior.Strict);
-            resultFilter2
-                .Setup(f => f.OnResultExecuting(It.IsAny<ResultExecutingContext>()))
-                .Throws(exception)
-                .Verifiable();
-
-            var resultFilter3 = new Mock<IResultFilter>(MockBehavior.Strict);
-
-            var invoker = CreateInvoker(new IFilterMetadata[] { resultFilter1.Object, resultFilter2.Object, resultFilter3.Object });
-
-            // Act
-            await invoker.InvokeAsync();
-
-            // Assert
-            Assert.Same(exception, context.Exception);
-
-            resultFilter1.Verify(f => f.OnResultExecuting(It.IsAny<ResultExecutingContext>()), Times.Once());
-            resultFilter1.Verify(f => f.OnResultExecuted(It.IsAny<ResultExecutedContext>()), Times.Once());
-
-            resultFilter2.Verify(f => f.OnResultExecuting(It.IsAny<ResultExecutingContext>()), Times.Once());
-        }
-
-        [Fact]
-        public async Task InvokeAction_InvokesAsyncResultFilter_WithExceptionThrownByResultFilter()
-        {
-            // Arrange
-            ResultExecutedContext context = null;
-            var exception = new DataMisalignedException();
-
-            var resultFilter1 = new Mock<IAsyncResultFilter>(MockBehavior.Strict);
-            resultFilter1
-                .Setup(f => f.OnResultExecutionAsync(It.IsAny<ResultExecutingContext>(), It.IsAny<ResultExecutionDelegate>()))
-                .Returns<ResultExecutingContext, ResultExecutionDelegate>(async (c, next) =>
-                {
-                    context = await next();
-
-                    // Handle the exception
                     Assert.False(context.ExceptionHandled);
+                    Assert.Same(exception, context.Exception);
+
+                    // Handle the exception
                     context.ExceptionHandled = true;
                 })
                 .Verifiable();
@@ -1207,7 +1160,48 @@ namespace Microsoft.AspNetCore.Mvc.Internal
             await invoker.InvokeAsync();
 
             // Assert
-            Assert.Same(exception, context.Exception);
+            resultFilter1.Verify(f => f.OnResultExecuting(It.IsAny<ResultExecutingContext>()), Times.Once());
+            resultFilter1.Verify(f => f.OnResultExecuted(It.IsAny<ResultExecutedContext>()), Times.Once());
+
+            resultFilter2.Verify(f => f.OnResultExecuting(It.IsAny<ResultExecutingContext>()), Times.Once());
+        }
+
+        [Fact]
+        public async Task InvokeAction_InvokesAsyncResultFilter_WithExceptionThrownByResultFilter()
+        {
+            // Arrange
+            var exception = new DataMisalignedException();
+
+            var resultFilter1 = new Mock<IAsyncResultFilter>(MockBehavior.Strict);
+            resultFilter1
+                .Setup(f => f.OnResultExecutionAsync(It.IsAny<ResultExecutingContext>(), It.IsAny<ResultExecutionDelegate>()))
+                .Returns<ResultExecutingContext, ResultExecutionDelegate>(async (c, next) =>
+                {
+                    var context = await next();
+
+                    Assert.False(context.ExceptionHandled);
+                    Assert.Same(exception, context.Exception);
+
+                    // Handle the exception
+                    context.ExceptionHandled = true;
+                })
+                .Verifiable();
+
+            var resultFilter2 = new Mock<IResultFilter>(MockBehavior.Strict);
+            resultFilter2
+                .Setup(f => f.OnResultExecuting(It.IsAny<ResultExecutingContext>()))
+                .Throws(exception)
+                .Verifiable();
+
+            var resultFilter3 = new Mock<IResultFilter>(MockBehavior.Strict);
+
+            var invoker = CreateInvoker(new IFilterMetadata[] { resultFilter1.Object, resultFilter2.Object, resultFilter3.Object });
+
+            // Act
+            await invoker.InvokeAsync();
+
+            // Assert
+            
 
             resultFilter1.Verify(
                 f => f.OnResultExecutionAsync(It.IsAny<ResultExecutingContext>(), It.IsAny<ResultExecutionDelegate>()),
@@ -1518,15 +1512,17 @@ namespace Microsoft.AspNetCore.Mvc.Internal
         public async Task InvokeAction_InvokesAsyncResourceFilter_HandlesException_FromResultFilter()
         {
             // Arrange
-            var expected = new DataMisalignedException();
+            var expectedException = new DataMisalignedException();
 
-            ResourceExecutedContext context = null;
             var resourceFilter = new Mock<IAsyncResourceFilter>(MockBehavior.Strict);
             resourceFilter
                 .Setup(f => f.OnResourceExecutionAsync(It.IsAny<ResourceExecutingContext>(), It.IsAny<ResourceExecutionDelegate>()))
                 .Returns<ResourceExecutingContext, ResourceExecutionDelegate>(async (c, next) =>
                 {
-                    context = await next();
+                    var context = await next();
+                    Assert.Same(expectedException, context.Exception);
+                    Assert.Same(expectedException, context.ExceptionDispatchInfo.SourceException);
+
                     context.ExceptionHandled = true;
                 })
                 .Verifiable();
@@ -1536,7 +1532,7 @@ namespace Microsoft.AspNetCore.Mvc.Internal
                 .Setup(f => f.OnResultExecuting(It.IsAny<ResultExecutingContext>()))
                 .Callback<ResultExecutingContext>((c) =>
                 {
-                    throw expected;
+                    throw expectedException;
                 });
 
             var invoker = CreateInvoker(new IFilterMetadata[] { resourceFilter.Object, resultFilter.Object });
@@ -1545,9 +1541,6 @@ namespace Microsoft.AspNetCore.Mvc.Internal
             await invoker.InvokeAsync();
 
             // Assert
-            Assert.Same(expected, context.Exception);
-            Assert.Same(expected, context.ExceptionDispatchInfo.SourceException);
-
             resourceFilter.Verify(
                 f => f.OnResourceExecutionAsync(It.IsAny<ResourceExecutingContext>(), It.IsAny<ResourceExecutionDelegate>()),
                 Times.Once());
@@ -1930,34 +1923,17 @@ namespace Microsoft.AspNetCore.Mvc.Internal
             Assert.Same(input, contentResult.Value);
         }
 
-        [Fact]
-        public async Task MaxAllowedErrorsIsSet_BeforeCallingAuthorizationFilter()
-        {
-            // Arrange
-            var expected = 147;
-            var filter = new MockAuthorizationFilter(expected);
-            var invoker = CreateInvoker(
-                filter,
-                actionThrows: false,
-                maxAllowedErrorsInModelState: expected);
-
-            // Act & Assert
-            // The authorization filter asserts if MaxAllowedErrors was set to the right value.
-            await invoker.InvokeAsync();
-        }
 
         private TestControllerActionInvoker CreateInvoker(
             IFilterMetadata filter,
-            bool actionThrows = false,
-            int maxAllowedErrorsInModelState = 200)
+            bool actionThrows = false)
         {
-            return CreateInvoker(new[] { filter }, actionThrows, maxAllowedErrorsInModelState);
+            return CreateInvoker(new[] { filter }, actionThrows);
         }
 
         private TestControllerActionInvoker CreateInvoker(
             IFilterMetadata[] filters,
-            bool actionThrows = false,
-            int maxAllowedErrorsInModelState = 200)
+            bool actionThrows = false)
         {
             var actionDescriptor = new ControllerActionDescriptor()
             {
