@@ -771,32 +771,39 @@ namespace Microsoft.AspNetCore.Mvc.Internal
                 where TFilter : class
                 where TFilterAsync : class
             {
-                while (_index < _filters.Length)
+                // Perf: Be really careful with changes here - this method is SUPER hot. We're very careful
+                // here to avoid repeated access of _index, and do things in the order that's most likely
+                // to no-op.
+
+                var index = _index;
+                var length = _filters.Length;
+
+                while (index < length)
                 {
-                    var filter = _filters[_index] as TFilter;
-                    var filterAsync = _filters[_index] as TFilterAsync;
+                    var filter = _filters[index++];
 
-                    _index += 1;
+                    var filterAsync = filter as TFilterAsync;
+                    TFilter filterSync = null;
 
-                    if (filter != null || filterAsync != null)
+                    if (filterAsync != null || (filterSync = filter as TFilter) != null)
                     {
-                        return new FilterCursorItem<TFilter, TFilterAsync>(_index, filter, filterAsync);
+                        _index = index;
+                        return new FilterCursorItem<TFilter, TFilterAsync>(filterSync, filterAsync);
                     }
                 }
 
+                _index = index;
                 return default(FilterCursorItem<TFilter, TFilterAsync>);
             }
         }
 
         private struct FilterCursorItem<TFilter, TFilterAsync>
         {
-            public readonly int Index;
             public readonly TFilter Filter;
             public readonly TFilterAsync FilterAsync;
 
-            public FilterCursorItem(int index, TFilter filter, TFilterAsync filterAsync)
+            public FilterCursorItem(TFilter filter, TFilterAsync filterAsync)
             {
-                Index = index;
                 Filter = filter;
                 FilterAsync = filterAsync;
             }
