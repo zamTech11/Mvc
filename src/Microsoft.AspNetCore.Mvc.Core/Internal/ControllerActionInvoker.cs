@@ -33,7 +33,13 @@ namespace Microsoft.AspNetCore.Mvc.Internal
         // Do not make this readonly, it's mutable. We don't want to make a copy.
         // https://blogs.msdn.microsoft.com/ericlippert/2008/05/14/mutating-readonly-structs/
         private FilterCursor _cursor;
+        private Dictionary<string, object> _arguments;
         private object _controller;
+        private IActionResult _result;
+        private Exception _exception;
+        private ExceptionDispatchInfo _exceptionDispatchInfo;
+        private bool _exceptionHandled;
+        private IActionResult _exceptionResult;
 
         private AuthorizationFilterContext _authorizationContext;
 
@@ -92,7 +98,7 @@ namespace Microsoft.AspNetCore.Mvc.Internal
             {
                 throw new ArgumentNullException(nameof(valueProviderFactories));
             }
-            
+
             _controllerFactory = controllerFactory;
             _controllerArgumentBinder = controllerArgumentBinder;
             _logger = logger;
@@ -117,9 +123,9 @@ namespace Microsoft.AspNetCore.Mvc.Internal
             // If Authorization Filters return a result, it's a short circuit because
             // authorization failed. We don't execute Result Filters around the result.
             Debug.Assert(_authorizationContext != null);
-            if (_authorizationContext.Result != null)
+            if (_result != null)
             {
-                await InvokeResultAsync(_authorizationContext.Result);
+                await InvokeResultAsync(_result);
                 return;
             }
 
@@ -141,16 +147,21 @@ namespace Microsoft.AspNetCore.Mvc.Internal
             // We've reached the end of resource filters. If there's an unhandled exception on the context then
             // it should be thrown and middleware has a chance to handle it.
             Debug.Assert(_resourceExecutedContext != null);
-            if (_resourceExecutedContext.Exception != null && !_resourceExecutedContext.ExceptionHandled)
+
+            if (_exceptionHandled)
             {
-                if (_resourceExecutedContext.ExceptionDispatchInfo == null)
-                {
-                    throw _resourceExecutedContext.Exception;
-                }
-                else
-                {
-                    _resourceExecutedContext.ExceptionDispatchInfo.Throw();
-                }
+                _exception = null;
+                _exceptionDispatchInfo = null;
+            }
+
+            if (_exceptionDispatchInfo != null)
+            {
+                _exceptionDispatchInfo.Throw();
+            }
+
+            if (_exception != null)
+            {
+                throw _exception;
             }
         }
 
@@ -158,7 +169,7 @@ namespace Microsoft.AspNetCore.Mvc.Internal
         {
             _cursor.Reset();
 
-            _authorizationContext = new AuthorizationFilterContext(_controllerContext, _filters);
+            _authorizationContext = new PrivateAuthorizationFilterContext(this);
             return InvokeAuthorizationFilterAsync();
         }
 
@@ -166,7 +177,7 @@ namespace Microsoft.AspNetCore.Mvc.Internal
         {
             // We should never get here if we already have a result.
             Debug.Assert(_authorizationContext != null);
-            Debug.Assert(_authorizationContext.Result == null);
+            Debug.Assert(_result == null);
 
             var current = _cursor.GetNextFilter<IAuthorizationFilter, IAsyncAuthorizationFilter>();
             if (current.FilterAsync != null)
@@ -177,7 +188,7 @@ namespace Microsoft.AspNetCore.Mvc.Internal
 
                 _diagnosticSource.AfterOnAuthorizationAsync(_authorizationContext, current.FilterAsync);
 
-                if (_authorizationContext.Result == null)
+                if (_result == null)
                 {
                     // Only keep going if we don't have a result
                     await InvokeAuthorizationFilterAsync();
@@ -195,7 +206,7 @@ namespace Microsoft.AspNetCore.Mvc.Internal
 
                 _diagnosticSource.AfterOnAuthorization(_authorizationContext, current.Filter);
 
-                if (_authorizationContext.Result == null)
+                if (_result == null)
                 {
                     // Only keep going if we don't have a result
                     await InvokeAuthorizationFilterAsync();
@@ -216,7 +227,7 @@ namespace Microsoft.AspNetCore.Mvc.Internal
         {
             _cursor.Reset();
 
-            _resourceExecutingContext = new ResourceExecutingContext(_controllerContext, _filters);
+            _resourceExecutingContext = new PrivateResourceExecutingContext(this);
             return InvokeResourceFilterAsync();
         }
 
@@ -224,7 +235,7 @@ namespace Microsoft.AspNetCore.Mvc.Internal
         {
             Debug.Assert(_resourceExecutingContext != null);
 
-            if (_resourceExecutingContext.Result != null)
+            if (_result != null)
             {
                 // If we get here, it means that an async filter set a result AND called next(). This is forbidden.
                 var message = Resources.FormatAsyncResourceFilter_InvalidShortCircuit(
@@ -245,6 +256,7 @@ namespace Microsoft.AspNetCore.Mvc.Internal
         private async Task InvokeResourceFilterAsync()
         {
             Debug.Assert(_resourceExecutingContext != null);
+            Debug.Assert(_result == null);
 
             var item = _cursor.GetNextFilter<IResourceFilter, IAsyncResourceFilter>();
             try
@@ -258,20 +270,19 @@ namespace Microsoft.AspNetCore.Mvc.Internal
                     if (_resourceExecutedContext == null)
                     {
                         // If we get here then the filter didn't call 'next' indicating a short circuit
-                        _resourceExecutedContext = new ResourceExecutedContext(_resourceExecutingContext, _filters)
+                        _resourceExecutedContext = new PrivateResourceExecutedContext(this)
                         {
                             Canceled = true,
-                            Result = _resourceExecutingContext.Result,
                         };
                     }
 
                     _diagnosticSource.AfterOnResourceExecution(_resourceExecutedContext, item.FilterAsync);
-                    
-                    if (_resourceExecutingContext.Result != null)
+
+                    if (_result != null)
                     {
                         _logger.ResourceFilterShortCircuited(item.FilterAsync);
 
-                        await InvokeResultAsync(_resourceExecutingContext.Result);
+                        await InvokeResultAsync(_result);
                     }
                 }
                 else if (item.Filter != null)
@@ -282,17 +293,16 @@ namespace Microsoft.AspNetCore.Mvc.Internal
 
                     _diagnosticSource.AfterOnResourceExecuting(_resourceExecutingContext, item.Filter);
 
-                    if (_resourceExecutingContext.Result != null)
+                    if (_result != null)
                     {
                         // Short-circuited by setting a result.
                         _logger.ResourceFilterShortCircuited(item.Filter);
 
-                        await InvokeResultAsync(_resourceExecutingContext.Result);
+                        await InvokeResultAsync(_result);
 
-                        _resourceExecutedContext = new ResourceExecutedContext(_resourceExecutingContext, _filters)
+                        _resourceExecutedContext = new PrivateResourceExecutedContext(this)
                         {
                             Canceled = true,
-                            Result = _resourceExecutingContext.Result,
                         };
                     }
                     else
@@ -315,50 +325,42 @@ namespace Microsoft.AspNetCore.Mvc.Internal
                     // If Exception Filters provide a result, it's a short-circuit due to an exception.
                     // We don't execute Result Filters around the result.
                     Debug.Assert(_exceptionContext != null);
-                    if (_exceptionContext.Result != null)
+                    if (_exceptionResult != null)
                     {
                         // This means that exception filters returned a result to 'handle' an error.
                         // We're not interested in seeing the exception details since it was handled.
-                        await InvokeResultAsync(_exceptionContext.Result);
+                        _exception = null;
+                        _exceptionDispatchInfo = null;
 
-                        _resourceExecutedContext = new ResourceExecutedContext(_resourceExecutingContext, _filters)
+                        await InvokeResultAsync(_exceptionResult);
+
+                        _resourceExecutedContext = new PrivateResourceExecutedContext(this)
                         {
-                            Result = _exceptionContext.Result,
+                            Result = _exceptionResult,
                         };
                     }
-                    else if (_exceptionContext.Exception != null)
+                    else if (_exception != null)
                     {
                         // If we get here, this means that we have an unhandled exception.
                         // Exception filted didn't handle this, so send it on to resource filters.
-                        _resourceExecutedContext = new ResourceExecutedContext(_resourceExecutingContext, _filters);
-
-                        // Preserve the stack trace if possible.
-                        _resourceExecutedContext.Exception = _exceptionContext.Exception;
-                        if (_exceptionContext.ExceptionDispatchInfo != null)
-                        {
-                            _resourceExecutedContext.ExceptionDispatchInfo = _exceptionContext.ExceptionDispatchInfo;
-                        }
+                        _resourceExecutedContext = new PrivateResourceExecutedContext(this);
                     }
                     else
                     {
                         // We have a successful 'result' from the action or an Action Filter, so run
                         // Result Filters.
                         Debug.Assert(_actionExecutedContext != null);
-                        var result = _actionExecutedContext.Result;
 
                         // >> ResultFilters >> (Result)
-                        await InvokeAllResultFiltersAsync(result);
+                        await InvokeAllResultFiltersAsync(_result);
 
-                        _resourceExecutedContext = new ResourceExecutedContext(_resourceExecutingContext, _filters)
-                        {
-                            Result = _resultExecutedContext.Result,
-                        };
+                        _resourceExecutedContext = new PrivateResourceExecutedContext(this);
                     }
                 }
             }
             catch (Exception exception)
             {
-                _resourceExecutedContext = new ResourceExecutedContext(_resourceExecutingContext, _filters)
+                _resourceExecutedContext = new PrivateResourceExecutedContext(this)
                 {
                     ExceptionDispatchInfo = ExceptionDispatchInfo.Capture(exception)
                 };
@@ -384,7 +386,7 @@ namespace Microsoft.AspNetCore.Mvc.Internal
                 await InvokeExceptionFilterAsync();
 
                 Debug.Assert(_exceptionContext != null);
-                if (_exceptionContext.Exception != null)
+                if (_exception != null)
                 {
                     _diagnosticSource.BeforeOnExceptionAsync(_exceptionContext, current.FilterAsync);
 
@@ -394,7 +396,7 @@ namespace Microsoft.AspNetCore.Mvc.Internal
 
                     _diagnosticSource.AfterOnExceptionAsync(_exceptionContext, current.FilterAsync);
 
-                    if (_exceptionContext.Exception == null)
+                    if (_exception == null)
                     {
                         _logger.ExceptionFilterShortCircuited(current.FilterAsync);
                     }
@@ -407,7 +409,7 @@ namespace Microsoft.AspNetCore.Mvc.Internal
                 await InvokeExceptionFilterAsync();
 
                 Debug.Assert(_exceptionContext != null);
-                if (_exceptionContext.Exception != null)
+                if (_exception != null)
                 {
                     _diagnosticSource.BeforeOnException(_exceptionContext, current.Filter);
 
@@ -417,7 +419,7 @@ namespace Microsoft.AspNetCore.Mvc.Internal
 
                     _diagnosticSource.AfterOnException(_exceptionContext, current.Filter);
 
-                    if (_exceptionContext.Exception == null)
+                    if (_exception == null)
                     {
                         _logger.ExceptionFilterShortCircuited(current.Filter);
                     }
@@ -431,22 +433,21 @@ namespace Microsoft.AspNetCore.Mvc.Internal
                 // 1) Call the filter (if we have an exception)
                 // 2) No-op (if we don't have an exception)
                 Debug.Assert(_exceptionContext == null);
-                _exceptionContext = new ExceptionContext(_controllerContext, _filters);
+                _exceptionContext = new PrivateExceptionContext(this);
 
                 try
                 {
                     await InvokeAllActionFiltersAsync();
-
-                    // Action filters might 'return' an unhandled exception instead of throwing
                     Debug.Assert(_actionExecutedContext != null);
-                    if (_actionExecutedContext.Exception != null && !_actionExecutedContext.ExceptionHandled)
+
+                    if (_exceptionHandled)
                     {
-                        _exceptionContext.Exception = _actionExecutedContext.Exception;
-                        if (_actionExecutedContext.ExceptionDispatchInfo != null)
-                        {
-                            _exceptionContext.ExceptionDispatchInfo = _actionExecutedContext.ExceptionDispatchInfo;
-                        }
+                        _exception = null;
+                        _exceptionDispatchInfo = null;
                     }
+
+                    // Action filters might 'return' an unhandled exception instead of throwing, if that happens then
+                    // it will flow through the _exception field.
                 }
                 catch (Exception exception)
                 {
@@ -461,9 +462,9 @@ namespace Microsoft.AspNetCore.Mvc.Internal
 
             _controller = _controllerFactory.CreateController(_controllerContext);
 
-            var arguments = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
-            await _controllerArgumentBinder.BindArgumentsAsync(_controllerContext, _controller, arguments);
-            _actionExecutingContext = new ActionExecutingContext(_controllerContext, _filters, arguments, _controller);
+            _arguments = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
+            await _controllerArgumentBinder.BindArgumentsAsync(_controllerContext, _controller, _arguments);
+            _actionExecutingContext = new PrivateActionExecutingContext(this);
 
             await InvokeActionFilterAsync();
         }
@@ -471,7 +472,7 @@ namespace Microsoft.AspNetCore.Mvc.Internal
         private async Task<ActionExecutedContext> InvokeActionFilterAwaitedAsync()
         {
             Debug.Assert(_actionExecutingContext != null);
-            if (_actionExecutingContext.Result != null)
+            if (_result != null)
             {
                 // If we get here, it means that an async filter set a result AND called next(). This is forbidden.
                 var message = Resources.FormatAsyncActionFilter_InvalidShortCircuit(
@@ -507,13 +508,9 @@ namespace Microsoft.AspNetCore.Mvc.Internal
                         // If we get here then the filter didn't call 'next' indicating a short circuit
                         _logger.ActionFilterShortCircuited(item.FilterAsync);
 
-                        _actionExecutedContext = new ActionExecutedContext(
-                            _actionExecutingContext,
-                            _filters,
-                            _controller)
+                        _actionExecutedContext = new PrivateActionExecutedContext(this)
                         {
                             Canceled = true,
-                            Result = _actionExecutingContext.Result,
                         };
                     }
 
@@ -527,18 +524,14 @@ namespace Microsoft.AspNetCore.Mvc.Internal
 
                     _diagnosticSource.AfterOnActionExecuting(_actionExecutingContext, item.Filter);
 
-                    if (_actionExecutingContext.Result != null)
+                    if (_result != null)
                     {
                         // Short-circuited by setting a result.
                         _logger.ActionFilterShortCircuited(item.Filter);
 
-                        _actionExecutedContext = new ActionExecutedContext(
-                            _actionExecutingContext,
-                            _filters,
-                            _controller)
+                        _actionExecutedContext = new PrivateActionExecutedContext(this)
                         {
                             Canceled = true,
-                            Result = _actionExecutingContext.Result,
                         };
                     }
                     else
@@ -556,16 +549,11 @@ namespace Microsoft.AspNetCore.Mvc.Internal
                 else
                 {
                     // All action filters have run, execute the action method.
-                    IActionResult result = null;
-
                     try
                     {
-                        _diagnosticSource.BeforeActionMethod(
-                            _controllerContext,
-                            _actionExecutingContext.ActionArguments,
-                            _actionExecutingContext.Controller);
+                        _diagnosticSource.BeforeActionMethod(_controllerContext, _arguments, _controller);
 
-                        var actionMethodInfo = _controllerContext.ActionDescriptor.MethodInfo;
+                        var method = _controllerContext.ActionDescriptor.MethodInfo;
 
                         var arguments = ControllerActionExecutor.PrepareArguments(
                             _actionExecutingContext.ActionArguments,
@@ -578,35 +566,26 @@ namespace Microsoft.AspNetCore.Mvc.Internal
                             _controller,
                             arguments);
 
-                        result = CreateActionResult( actionMethodInfo.ReturnType, actionReturnValue);
+                        _result = CreateActionResult(method.ReturnType, actionReturnValue);
 
-                        _logger.ActionMethodExecuted(_actionExecutingContext, result);
+                        _logger.ActionMethodExecuted(_actionExecutingContext, _result);
                     }
                     finally
                     {
                         _diagnosticSource.AfterActionMethod(
                             _controllerContext,
-                            _actionExecutingContext.ActionArguments,
-                            _actionExecutingContext.Controller,
-                            result);
+                            _arguments,
+                            _controller,
+                            _result);
                     }
 
-                    _actionExecutedContext = new ActionExecutedContext(
-                        _actionExecutingContext,
-                        _filters,
-                        _controller)
-                    {
-                        Result = result
-                    };
+                    _actionExecutedContext = new PrivateActionExecutedContext(this);
                 }
             }
             catch (Exception exception)
             {
                 // Exceptions thrown by the action method OR filters bubble back up through ActionExcecutedContext.
-                _actionExecutedContext = new ActionExecutedContext(
-                    _actionExecutingContext,
-                    _filters,
-                    _controller)
+                _actionExecutedContext = new PrivateActionExecutedContext(this)
                 {
                     ExceptionDispatchInfo = ExceptionDispatchInfo.Capture(exception)
                 };
@@ -619,22 +598,10 @@ namespace Microsoft.AspNetCore.Mvc.Internal
         {
             _cursor.Reset();
 
-            _resultExecutingContext = new ResultExecutingContext(_controllerContext, _filters, result, _controller);
+            _resultExecutingContext = new PrivateResultExecutingContext(this);
             await InvokeResultFilterAsync();
 
             Debug.Assert(_resultExecutingContext != null);
-            if (_resultExecutedContext.Exception != null && !_resultExecutedContext.ExceptionHandled)
-            {
-                // There's an unhandled exception in filters
-                if (_resultExecutedContext.ExceptionDispatchInfo != null)
-                {
-                    _resultExecutedContext.ExceptionDispatchInfo.Throw();
-                }
-                else
-                {
-                    throw _resultExecutedContext.Exception;
-                }
-            }
         }
 
         private async Task<ResultExecutedContext> InvokeResultFilterAwaitedAsync()
@@ -678,11 +645,7 @@ namespace Microsoft.AspNetCore.Mvc.Internal
                         // Short-circuited by not calling next || Short-circuited by setting Cancel == true
                         _logger.ResourceFilterShortCircuited(item.FilterAsync);
 
-                        _resultExecutedContext = new ResultExecutedContext(
-                            _resultExecutingContext,
-                            _filters,
-                            _resultExecutingContext.Result,
-                            _controller)
+                        _resultExecutedContext = new PrivateResultExecutedContext(this)
                         {
                             Canceled = true,
                         };
@@ -703,11 +666,7 @@ namespace Microsoft.AspNetCore.Mvc.Internal
                         // Short-circuited by setting Cancel == true
                         _logger.ResourceFilterShortCircuited(item.Filter);
 
-                        _resultExecutedContext = new ResultExecutedContext(
-                            _resultExecutingContext,
-                            _filters,
-                            _resultExecutingContext.Result,
-                            _controller)
+                        _resultExecutedContext = new PrivateResultExecutedContext(this)
                         {
                             Canceled = true,
                         };
@@ -729,28 +688,23 @@ namespace Microsoft.AspNetCore.Mvc.Internal
                     _cursor.Reset();
 
                     // The empty result is always flowed back as the 'executed' result
-                    if (_resultExecutingContext.Result == null)
-                    {
-                        _resultExecutingContext.Result = new EmptyResult();
-                    }
+                    _result = _result ?? new EmptyResult();
 
-                    await InvokeResultAsync(_resultExecutingContext.Result);
+                    await InvokeResultAsync(_result);
 
                     Debug.Assert(_resultExecutedContext == null);
-                    _resultExecutedContext = new ResultExecutedContext(
-                        _resultExecutingContext,
-                        _filters,
-                        _resultExecutingContext.Result,
-                        _controller);
+                    _resultExecutedContext = new PrivateResultExecutedContext(this);
+
+                    if (_exceptionHandled)
+                    {
+                        _exception = null;
+                        _exceptionDispatchInfo = null;
+                    }
                 }
             }
             catch (Exception exception)
             {
-                _resultExecutedContext = new ResultExecutedContext(
-                    _resultExecutingContext,
-                    _filters,
-                    _resultExecutingContext.Result,
-                    _controller)
+                _resultExecutedContext = new PrivateResultExecutedContext(this)
                 {
                     ExceptionDispatchInfo = ExceptionDispatchInfo.Capture(exception)
                 };
@@ -890,6 +844,300 @@ namespace Microsoft.AspNetCore.Mvc.Internal
                 Index = index;
                 Filter = filter;
                 FilterAsync = filterAsync;
+            }
+        }
+
+        private class PrivateAuthorizationFilterContext : AuthorizationFilterContext
+        {
+            private readonly ControllerActionInvoker _invoker;
+
+            public PrivateAuthorizationFilterContext(ControllerActionInvoker invoker)
+                : base(invoker._controllerContext, invoker._filters)
+            {
+                _invoker = invoker;
+            }
+
+            public override IActionResult Result
+            {
+                get { return _invoker._result; }
+                set { _invoker._result = value; }
+            }
+        }
+
+        private class PrivateResourceExecutingContext : ResourceExecutingContext
+        {
+            private readonly ControllerActionInvoker _invoker;
+
+            public PrivateResourceExecutingContext(ControllerActionInvoker invoker)
+                : base(invoker._controllerContext, invoker._filters)
+            {
+                _invoker = invoker;
+            }
+
+            public override IActionResult Result
+            {
+                get { return _invoker._result; }
+                set { _invoker._result = value; }
+            }
+        }
+
+        private class PrivateResourceExecutedContext : ResourceExecutedContext
+        {
+            private readonly ControllerActionInvoker _invoker;
+
+            public PrivateResourceExecutedContext(ControllerActionInvoker invoker)
+                : base(invoker._controllerContext, invoker._filters)
+            {
+                _invoker = invoker;
+            }
+
+            public override Exception Exception
+            {
+                get
+                {
+                    if (_invoker._exceptionDispatchInfo != null)
+                    {
+                        return _invoker._exceptionDispatchInfo.SourceException;
+                    }
+                    else
+                    {
+                        return _invoker._exception;
+                    }
+                }
+
+                set
+                {
+                    _invoker._exceptionDispatchInfo = null;
+                    _invoker._exception = value;
+                }
+            }
+
+            public override ExceptionDispatchInfo ExceptionDispatchInfo
+            {
+                get
+                {
+                    return _invoker._exceptionDispatchInfo;
+                }
+
+                set
+                {
+                    _invoker._exception = value?.SourceException;
+                    _invoker._exceptionDispatchInfo = value;
+                }
+            }
+
+            public override bool ExceptionHandled
+            {
+                get { return _invoker._exceptionHandled; }
+                set { _invoker._exceptionHandled = value; }
+            }
+
+            public override IActionResult Result
+            {
+                get { return _invoker._result; }
+                set { _invoker._result = value; }
+            }
+        }
+
+        private class PrivateExceptionContext : ExceptionContext
+        {
+            private readonly ControllerActionInvoker _invoker;
+
+            public PrivateExceptionContext(ControllerActionInvoker invoker)
+                : base(invoker._controllerContext, invoker._filters)
+            {
+                _invoker = invoker;
+            }
+
+            public override Exception Exception
+            {
+                get
+                {
+                    if (_invoker._exceptionDispatchInfo != null)
+                    {
+                        return _invoker._exceptionDispatchInfo.SourceException;
+                    }
+                    else
+                    {
+                        return _invoker._exception;
+                    }
+                }
+
+                set
+                {
+                    _invoker._exceptionDispatchInfo = null;
+                    _invoker._exception = value;
+                }
+            }
+
+            public override ExceptionDispatchInfo ExceptionDispatchInfo
+            {
+                get
+                {
+                    return _invoker._exceptionDispatchInfo;
+                }
+
+                set
+                {
+                    _invoker._exception = value?.SourceException;
+                    _invoker._exceptionDispatchInfo = value;
+                }
+            }
+
+            public override IActionResult Result
+            {
+                get { return _invoker._exceptionResult; }
+                set { _invoker._exceptionResult = value; }
+            }
+        }
+
+        private class PrivateActionExecutingContext : ActionExecutingContext
+        {
+            private readonly ControllerActionInvoker _invoker;
+
+            public PrivateActionExecutingContext(ControllerActionInvoker invoker)
+                : base(invoker._controllerContext, invoker._filters, invoker._arguments, invoker._controller)
+            {
+                _invoker = invoker;
+            }
+
+            public override IActionResult Result
+            {
+                get { return _invoker._result; }
+                set { _invoker._result = value; }
+            }
+        }
+
+        private class PrivateActionExecutedContext : ActionExecutedContext
+        {
+            private readonly ControllerActionInvoker _invoker;
+
+            public PrivateActionExecutedContext(ControllerActionInvoker invoker)
+                : base(invoker._controllerContext, invoker._filters, invoker._controller)
+            {
+                _invoker = invoker;
+            }
+
+            public override Exception Exception
+            {
+                get
+                {
+                    if (_invoker._exceptionDispatchInfo != null)
+                    {
+                        return _invoker._exceptionDispatchInfo.SourceException;
+                    }
+                    else
+                    {
+                        return _invoker._exception;
+                    }
+                }
+
+                set
+                {
+                    _invoker._exceptionDispatchInfo = null;
+                    _invoker._exception = value;
+                }
+            }
+
+            public override ExceptionDispatchInfo ExceptionDispatchInfo
+            {
+                get
+                {
+                    return _invoker._exceptionDispatchInfo;
+                }
+
+                set
+                {
+                    _invoker._exception = value?.SourceException;
+                    _invoker._exceptionDispatchInfo = value;
+                }
+            }
+
+            public override bool ExceptionHandled
+            {
+                get { return _invoker._exceptionHandled; }
+                set { _invoker._exceptionHandled = value; }
+            }
+
+            public override IActionResult Result
+            {
+                get { return _invoker._result; }
+                set { _invoker._result = value; }
+            }
+        }
+
+        private class PrivateResultExecutingContext : ResultExecutingContext
+        {
+            private readonly ControllerActionInvoker _invoker;
+
+            public PrivateResultExecutingContext(ControllerActionInvoker invoker)
+                : base(invoker._controllerContext, invoker._filters, invoker._result, invoker._controller)
+            {
+                _invoker = invoker;
+            }
+
+            public override IActionResult Result
+            {
+                get { return _invoker._result; }
+                set
+                {
+                    if (_invoker != null)
+                    {
+                        _invoker._result = value;
+                    }
+                }
+            }
+        }
+
+        private class PrivateResultExecutedContext : ResultExecutedContext
+        {
+            private readonly ControllerActionInvoker _invoker;
+
+            public PrivateResultExecutedContext(ControllerActionInvoker invoker)
+                : base(invoker._controllerContext, invoker._filters, invoker._result, invoker._controller)
+            {
+                _invoker = invoker;
+            }
+
+            public override Exception Exception
+            {
+                get
+                {
+                    if (_invoker._exceptionDispatchInfo != null)
+                    {
+                        return _invoker._exceptionDispatchInfo.SourceException;
+                    }
+                    else
+                    {
+                        return _invoker._exception;
+                    }
+                }
+
+                set
+                {
+                    _invoker._exceptionDispatchInfo = null;
+                    _invoker._exception = value;
+                }
+            }
+
+            public override ExceptionDispatchInfo ExceptionDispatchInfo
+            {
+                get
+                {
+                    return _invoker._exceptionDispatchInfo;
+                }
+
+                set
+                {
+                    _invoker._exception = value?.SourceException;
+                    _invoker._exceptionDispatchInfo = value;
+                }
+            }
+
+            public override bool ExceptionHandled
+            {
+                get { return _invoker._exceptionHandled; }
+                set { _invoker._exceptionHandled = value; }
             }
         }
     }
