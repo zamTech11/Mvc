@@ -446,10 +446,10 @@ namespace Microsoft.AspNetCore.Mvc.Internal
             var filter = new Mock<IAsyncActionFilter>(MockBehavior.Strict);
             filter
                 .Setup(f => f.OnActionExecutionAsync(It.IsAny<ActionExecutingContext>(), It.IsAny<ActionExecutionDelegate>()))
-                .Returns<ActionExecutingContext, ActionExecutionDelegate>(async (context, next) =>
+                .Returns<ActionExecutingContext, ActionExecutionDelegate>(async (c, next) =>
                 {
-                    var resultContext = await next();
-                    result = resultContext.Result;
+                    var context = await next();
+                    result = context.Result;
                 })
                 .Verifiable();
 
@@ -1201,8 +1201,6 @@ namespace Microsoft.AspNetCore.Mvc.Internal
             await invoker.InvokeAsync();
 
             // Assert
-
-
             resultFilter1.Verify(
                 f => f.OnResultExecutionAsync(It.IsAny<ResultExecutingContext>(), It.IsAny<ResultExecutionDelegate>()),
                 Times.Once());
@@ -1376,6 +1374,7 @@ namespace Microsoft.AspNetCore.Mvc.Internal
                 .Returns<ResourceExecutingContext, ResourceExecutionDelegate>(async (c, next) =>
                 {
                     context = await next();
+                    Assert.Same(expected, context.Result);
                 })
                 .Verifiable();
 
@@ -1393,8 +1392,6 @@ namespace Microsoft.AspNetCore.Mvc.Internal
             await invoker.InvokeAsync();
 
             // Assert
-            Assert.Same(expected, context.Result);
-
             resourceFilter.Verify(
                 f => f.OnResourceExecutionAsync(It.IsAny<ResourceExecutingContext>(), It.IsAny<ResourceExecutionDelegate>()),
                 Times.Once());
@@ -1580,14 +1577,15 @@ namespace Microsoft.AspNetCore.Mvc.Internal
         {
             // Arrange
             var expected = new DataMisalignedException();
-
-            ResourceExecutedContext context = null;
+            
             var resourceFilter1 = new Mock<IAsyncResourceFilter>(MockBehavior.Strict);
             resourceFilter1
                 .Setup(f => f.OnResourceExecutionAsync(It.IsAny<ResourceExecutingContext>(), It.IsAny<ResourceExecutionDelegate>()))
                 .Returns<ResourceExecutingContext, ResourceExecutionDelegate>(async (c, next) =>
                 {
-                    context = await next();
+                    var context = await next();
+                    Assert.Same(expected, context.Exception);
+                    Assert.Same(expected, context.ExceptionDispatchInfo.SourceException);
                 })
                 .Verifiable();
 
@@ -1607,8 +1605,6 @@ namespace Microsoft.AspNetCore.Mvc.Internal
 
             // Assert
             Assert.Same(expected, exception);
-            Assert.Same(expected, context.Exception);
-            Assert.Same(expected, context.ExceptionDispatchInfo.SourceException);
         }
 
         [Fact]
