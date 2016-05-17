@@ -2,10 +2,12 @@
 // Licensed under the Apache License, Version 2.0. See License.txt in the project root for license information.
 
 using System;
+using System.Linq.Expressions;
 using System.Reflection;
 using Microsoft.AspNetCore.Mvc.Core;
 using Microsoft.AspNetCore.Mvc.Infrastructure;
 using Microsoft.AspNetCore.Mvc.Internal;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Microsoft.AspNetCore.Mvc.Controllers
 {
@@ -30,52 +32,45 @@ namespace Microsoft.AspNetCore.Mvc.Controllers
             _typeActivatorCache = typeActivatorCache;
         }
 
-        /// <inheritdoc />
-        public virtual object Create(ControllerContext controllerContext)
+        public Func<ControllerContext, object> CreateDelegate(ControllerActionDescriptor actionDescriptor)
         {
-            if (controllerContext == null)
+            if (actionDescriptor == null)
             {
-                throw new ArgumentNullException(nameof(controllerContext));
+                throw new ArgumentNullException(nameof(actionDescriptor));
             }
 
-            if (controllerContext.ActionDescriptor == null)
-            {
-                throw new ArgumentException(Resources.FormatPropertyOfTypeCannotBeNull(
-                    nameof(ControllerContext.ActionDescriptor),
-                    nameof(ControllerContext)));
-            }
-
-            var controllerTypeInfo = controllerContext.ActionDescriptor.ControllerTypeInfo;
-
+            var controllerTypeInfo = actionDescriptor.ControllerTypeInfo;
             if (controllerTypeInfo == null)
             {
                 throw new ArgumentException(Resources.FormatPropertyOfTypeCannotBeNull(
-                    nameof(controllerContext.ActionDescriptor.ControllerTypeInfo),
-                    nameof(ControllerContext.ActionDescriptor)));
+                    nameof(ControllerActionDescriptor.ControllerTypeInfo),
+                    nameof(ControllerActionDescriptor)));
             }
 
-            var serviceProvider = controllerContext.HttpContext.RequestServices;
-            return _typeActivatorCache.CreateInstance<object>(serviceProvider, controllerTypeInfo.AsType());
+            var constructors = controllerTypeInfo.GetConstructors();
+            if (constructors.Length == 1 && constructors[0].GetParameters().Length == 0)
+            {
+                return 
+                    Expression.Lambda<Func<ControllerContext, object>>(
+                        Expression.New(constructors[0]),
+                        Expression.Parameter(typeof(ControllerContext), "controllerContext"))
+                    .Compile();
+            }
+            else
+            {
+                var factory = ActivatorUtilities.CreateFactory(controllerTypeInfo.AsType(), Type.EmptyTypes);
+
+                return (controllerContext) =>
+                {
+                    var services = controllerContext.HttpContext.RequestServices;
+                    return factory(services, null);
+                };
+            }
         }
 
-        /// <inheritdoc />
-        public virtual void Release(ControllerContext context, object controller)
+        public Action<ControllerContext, object> ReleaseDelegate(ControllerActionDescriptor actionDescriptor)
         {
-            if (context == null)
-            {
-                throw new ArgumentNullException(nameof(context));
-            }
-
-            if (controller == null)
-            {
-                throw new ArgumentNullException(nameof(controller));
-            }
-
-            var disposable = controller as IDisposable;
-            if (disposable != null)
-            {
-                disposable.Dispose();
-            }
+            return (controllerContext, controller) => { (controller as IDisposable)?.Dispose(); };
         }
     }
 }

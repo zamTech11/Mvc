@@ -25,9 +25,21 @@ namespace Microsoft.AspNetCore.Mvc.Controllers
             return actionContext.HttpContext.RequestServices.GetRequiredService(controllerType);
         }
 
+        public Func<ControllerContext, object> CreateDelegate(ControllerActionDescriptor actionDescriptor)
+        {
+            var controllerType = actionDescriptor.ControllerTypeInfo.AsType();
+
+            return (controllerContext) => controllerContext.HttpContext.RequestServices.GetRequiredService(controllerType);
+        }
+
         /// <inheritdoc />
         public virtual void Release(ControllerContext context, object controller)
         {
+        }
+
+        public Action<ControllerContext, object> ReleaseDelegate(ControllerActionDescriptor actionDescriptor)
+        {
+            return (controllerContext, controller) => { };
         }
     }
 }

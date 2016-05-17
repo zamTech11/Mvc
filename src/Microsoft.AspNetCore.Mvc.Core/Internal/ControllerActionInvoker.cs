@@ -29,6 +29,8 @@ namespace Microsoft.AspNetCore.Mvc.Internal
         private readonly ControllerContext _controllerContext;
         private readonly IFilterMetadata[] _filters;
         private readonly ObjectMethodExecutor _executor;
+        private readonly Func<ControllerContext, object> _createController;
+        private readonly Action<ControllerContext, object> _releaseController;
 
         // Do not make this readonly, it's mutable. We don't want to make a copy.
         // https://blogs.msdn.microsoft.com/ericlippert/2008/05/14/mutating-readonly-structs/
@@ -114,6 +116,8 @@ namespace Microsoft.AspNetCore.Mvc.Internal
             _filters = cacheEntry.Filters;
             _executor = cacheEntry.ActionMethodExecutor;
             _cursor = new FilterCursor(_filters);
+            _createController = cacheEntry.CreateController;
+            _releaseController = cacheEntry.ReleaseController;
         }
 
         public virtual async Task InvokeAsync()
@@ -219,7 +223,7 @@ namespace Microsoft.AspNetCore.Mvc.Internal
                 {
                     // If we get here then this means that we didn't have any exception filters. We need to 
                     // run action filters and possibly the action itself.
-                    _controller = _controllerFactory.CreateController(_controllerContext);
+                    _controller = _createController(_controllerContext);
 
                     _arguments = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
                     await _controllerArgumentBinder.BindArgumentsAsync(_controllerContext, _controller, _arguments);
@@ -338,7 +342,7 @@ namespace Microsoft.AspNetCore.Mvc.Internal
                 // that.
                 if (_controller != null)
                 {
-                    _controllerFactory.ReleaseController(_controllerContext, _controller);
+                    _releaseController(_controllerContext, _controller);
                 }
             }
         }
@@ -639,7 +643,7 @@ namespace Microsoft.AspNetCore.Mvc.Internal
                 {
                     // If we get here then this means that we didn't have any exception filters. We need to 
                     // run action filters and possibly the action itself.
-                    _controller = _controllerFactory.CreateController(_controllerContext);
+                    _controller = _createController(_controllerContext);
 
                     _arguments = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
                     await _controllerArgumentBinder.BindArgumentsAsync(_controllerContext, _controller, _arguments);
@@ -851,7 +855,7 @@ namespace Microsoft.AspNetCore.Mvc.Internal
             // 2) No-op (if we don't have an exception)
             try
             {
-                _controller = _controllerFactory.CreateController(_controllerContext);
+                _controller = _createController(_controllerContext);
 
                 _arguments = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
                 await _controllerArgumentBinder.BindArgumentsAsync(_controllerContext, _controller, _arguments);

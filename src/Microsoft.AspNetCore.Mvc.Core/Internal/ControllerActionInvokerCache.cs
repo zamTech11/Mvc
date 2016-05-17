@@ -1,11 +1,13 @@
 // Copyright (c) .NET Foundation. All rights reserved.
 // Licensed under the Apache License, Version 2.0. See License.txt in the project root for license information.
 
+using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using Microsoft.AspNetCore.Mvc.Abstractions;
+using Microsoft.AspNetCore.Mvc.Controllers;
 using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.AspNetCore.Mvc.Infrastructure;
 
@@ -16,16 +18,19 @@ namespace Microsoft.AspNetCore.Mvc.Internal
         private readonly IFilterMetadata[] EmptyFilterArray = new IFilterMetadata[0];
 
         private readonly IActionDescriptorCollectionProvider _collectionProvider;
+        private readonly IControllerFactory _controllerFactory;
         private readonly IFilterProvider[] _filterProviders;
 
         private volatile InnerCache _currentCache;
 
         public ControllerActionInvokerCache(
             IActionDescriptorCollectionProvider collectionProvider,
-            IEnumerable<IFilterProvider> filterProviders)
+            IEnumerable<IFilterProvider> filterProviders,
+            IControllerFactory controllerFactory)
         {
             _collectionProvider = collectionProvider;
             _filterProviders = filterProviders.OrderBy(item => item.Order).ToArray();
+            _controllerFactory = controllerFactory;
         }
 
         private InnerCache CurrentCache
@@ -71,7 +76,11 @@ namespace Microsoft.AspNetCore.Mvc.Internal
 
                 filters = GetFilters(controllerContext, filterItems);
 
-                return new ControllerActionInvokerState(filters, cacheEntry.ActionMethodExecutor);
+                return new ControllerActionInvokerState(
+                    filters,
+                    cacheEntry.ActionMethodExecutor,
+                    cacheEntry.CreateController,
+                    cacheEntry.ReleaseController);
             }
 
             var executor = ObjectMethodExecutor.Create(
@@ -101,10 +110,19 @@ namespace Microsoft.AspNetCore.Mvc.Internal
                     item.Filter = null;
                 }
             }
-            cacheEntry = new Entry(staticFilterItems, executor);
+
+            cacheEntry = new Entry(
+                staticFilterItems,
+                executor,
+                _controllerFactory.CreateControllerDelegate(actionDescriptor),
+                _controllerFactory.ReleaseControllerDelegate(actionDescriptor));
             cache.Entries.TryAdd(actionDescriptor, cacheEntry);
 
-            return new ControllerActionInvokerState(filters, cacheEntry.ActionMethodExecutor);
+            return new ControllerActionInvokerState(
+                filters,
+                cacheEntry.ActionMethodExecutor,
+                cacheEntry.CreateController,
+                cacheEntry.ReleaseController);
         }
 
         private IFilterMetadata[] GetFilters(ActionContext actionContext, List<FilterItem> filterItems)
@@ -166,32 +184,50 @@ namespace Microsoft.AspNetCore.Mvc.Internal
             public int Version { get; }
         }
 
-        private struct Entry
+        private class Entry
         {
-            public Entry(List<FilterItem> items, ObjectMethodExecutor executor)
+            public Entry(
+                List<FilterItem> items,
+                ObjectMethodExecutor executor,
+                Func<ControllerContext, object> createController,
+                Action<ControllerContext, object> releaseController)
             {
                 FilterItems = items;
                 ActionMethodExecutor = executor;
+                CreateController = createController;
+                ReleaseController = releaseController;
             }
 
             public List<FilterItem> FilterItems { get; }
 
             public ObjectMethodExecutor ActionMethodExecutor { get; }
+
+            public Func<ControllerContext, object> CreateController { get; set; }
+
+            public Action<ControllerContext, object> ReleaseController { get; set; }
         }
 
         public struct ControllerActionInvokerState
         {
             public ControllerActionInvokerState(
                 IFilterMetadata[] filters,
-                ObjectMethodExecutor actionMethodExecutor)
+                ObjectMethodExecutor actionMethodExecutor,
+                Func<ControllerContext, object> createController,
+                Action<ControllerContext, object> releaseController)
             {
                 Filters = filters;
                 ActionMethodExecutor = actionMethodExecutor;
+                CreateController = createController;
+                ReleaseController = releaseController;
             }
 
             public IFilterMetadata[] Filters { get; }
 
-            public ObjectMethodExecutor ActionMethodExecutor { get; set; }
+            public ObjectMethodExecutor ActionMethodExecutor { get; }
+
+            public Func<ControllerContext, object> CreateController { get; }
+
+            public Action<ControllerContext, object> ReleaseController { get; }
         }
     }
 }
