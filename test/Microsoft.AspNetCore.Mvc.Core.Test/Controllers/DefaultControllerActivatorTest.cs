@@ -40,7 +40,7 @@ namespace Microsoft.AspNetCore.Mvc.Controllers
                     }));
 
             // Act
-            var instance = activator.Create(context);
+            var instance = activator.CreateDelegate(context.ActionDescriptor)(context);
 
             // Assert
             Assert.IsType(type, instance);
@@ -53,8 +53,13 @@ namespace Microsoft.AspNetCore.Mvc.Controllers
             var controller = new MyController();
             var activator = new DefaultControllerActivator(Mock.Of<ITypeActivatorCache>());
 
+            var actionDescriptor = new ControllerActionDescriptor
+            {
+                ControllerTypeInfo = typeof(object).GetTypeInfo()
+            };
+
             // Act
-            activator.Release(new ControllerContext(), controller);
+            activator.ReleaseDelegate(actionDescriptor)(new ControllerContext(), controller);
 
             // Assert
             Assert.Equal(true, controller.Disposed);
@@ -67,8 +72,13 @@ namespace Microsoft.AspNetCore.Mvc.Controllers
             var activator = new DefaultControllerActivator(Mock.Of<ITypeActivatorCache>());
             var controller = new object();
 
+            var actionDescriptor = new ControllerActionDescriptor
+            {
+                ControllerTypeInfo = typeof(object).GetTypeInfo()
+            };
+
             // Act + Assert (does not throw)
-            activator.Release(Mock.Of<ControllerContext>(), controller);
+            activator.ReleaseDelegate(actionDescriptor)(Mock.Of<ControllerContext>(), controller);
         }
 
         [Fact]
@@ -97,7 +107,7 @@ namespace Microsoft.AspNetCore.Mvc.Controllers
                     }));
 
             // Act
-            var instance = activator.Create(context);
+            var instance = activator.CreateDelegate(context.ActionDescriptor)(context);
 
             // Assert
             var controller = Assert.IsType<TypeDerivingFromControllerWithServices>(instance);

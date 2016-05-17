@@ -2093,10 +2093,6 @@ namespace Microsoft.AspNetCore.Mvc.Internal
 
             var actionContext = new ActionContext(context.Object, new RouteData(), actionDescriptor);
 
-            var controllerFactory = new Mock<IControllerFactory>();
-            controllerFactory.Setup(c => c.CreateController(It.IsAny<ControllerContext>()))
-                             .Returns(new TestController());
-
             var metadataProvider = new EmptyModelMetadataProvider();
 
             var argumentBinder = new ControllerArgumentBinder(
@@ -2106,7 +2102,6 @@ namespace Microsoft.AspNetCore.Mvc.Internal
 
             var invoker = new ControllerActionInvoker(
                 CreateFilterCache(),
-                controllerFactory.Object,
                 argumentBinder,
                 new NullLoggerFactory().CreateLogger<ControllerActionInvoker>(),
                 new DiagnosticListener("Microsoft.AspNetCore"),
@@ -2200,11 +2195,21 @@ namespace Microsoft.AspNetCore.Mvc.Internal
                 return _controller;
             }
 
+            public Func<ControllerContext, object> CreateControllerDelegate(ControllerActionDescriptor actionDescriptor)
+            {
+                return CreateController;
+            }
+
             public void ReleaseController(ControllerContext context, object controller)
             {
                 Assert.NotNull(controller);
                 Assert.Same(_controller, controller);
                 ReleaseCalled = true;
+            }
+
+            public Action<ControllerContext, object> ReleaseControllerDelegate(ControllerActionDescriptor actionDescriptor)
+            {
+                return ReleaseController;
             }
 
             public void Verify()
@@ -2216,18 +2221,32 @@ namespace Microsoft.AspNetCore.Mvc.Internal
             }
         }
 
-        private static ControllerActionInvokerCache CreateFilterCache(IFilterProvider[] filterProviders = null)
+        private static ControllerActionInvokerCache CreateFilterCache(
+            IFilterProvider[] filterProviders = null, 
+            IControllerFactory controllerFactory = null)
         {
             var services = new ServiceCollection().BuildServiceProvider();
             var descriptorProvider = new ActionDescriptorCollectionProvider(services);
-            return new ControllerActionInvokerCache(descriptorProvider, filterProviders.AsEnumerable() ?? new List<IFilterProvider>());
+
+            if (controllerFactory == null)
+            {
+                controllerFactory = new DefaultControllerFactory(
+                    new DefaultControllerActivator(new TypeActivatorCache()),
+                    Enumerable.Empty<IControllerPropertyActivator>());
+            }
+
+
+            return new ControllerActionInvokerCache(
+                descriptorProvider, 
+                filterProviders.AsEnumerable() ?? new List<IFilterProvider>(),
+                controllerFactory);
         }
 
         private class TestControllerActionInvoker : ControllerActionInvoker
         {
             public TestControllerActionInvoker(
                 IFilterProvider[] filterProviders,
-                MockControllerFactory controllerFactory,
+                IControllerFactory controllerFactory,
                 IControllerArgumentBinder argumentBinder,
                 ILogger logger,
                 DiagnosticSource diagnosticSource,
@@ -2235,8 +2254,7 @@ namespace Microsoft.AspNetCore.Mvc.Internal
                 IReadOnlyList<IValueProviderFactory> valueProviderFactories,
                 int maxAllowedErrorsInModelState)
                 : base(
-                      CreateFilterCache(filterProviders),
-                      controllerFactory,
+                      CreateFilterCache(filterProviders, controllerFactory),
                       argumentBinder,
                       logger,
                       diagnosticSource,
@@ -2244,7 +2262,7 @@ namespace Microsoft.AspNetCore.Mvc.Internal
                       valueProviderFactories,
                       maxAllowedErrorsInModelState)
             {
-                ControllerFactory = controllerFactory;
+                ControllerFactory = controllerFactory as MockControllerFactory;
             }
 
             public MockControllerFactory ControllerFactory { get; }
@@ -2254,7 +2272,7 @@ namespace Microsoft.AspNetCore.Mvc.Internal
                 await base.InvokeAsync();
 
                 // Make sure that the controller was disposed in every test that creates ones.
-                ControllerFactory.Verify();
+                ControllerFactory?.Verify();
             }
         }
 

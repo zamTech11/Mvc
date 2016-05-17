@@ -10,17 +10,8 @@ namespace Microsoft.AspNetCore.Mvc.Controllers
     /// </summary>
     public interface IControllerActivator
     {
-        /// <summary>
-        /// Creates a controller.
-        /// </summary>
-        /// <param name="context">The <see cref="ControllerContext"/> for the executing action.</param>
-        object Create(ControllerContext context);
+        Func<ControllerContext, object> CreateDelegate(ControllerActionDescriptor actionDescriptor);
 
-        /// <summary>
-        /// Releases a controller.
-        /// </summary>
-        /// <param name="context">The <see cref="ControllerContext"/> for the executing action.</param>
-        /// <param name="controller">The controller to release.</param>
-        void Release(ControllerContext context, object controller);
+        Action<ControllerContext, object> ReleaseDelegate(ControllerActionDescriptor actionDescriptor);
     }
 }

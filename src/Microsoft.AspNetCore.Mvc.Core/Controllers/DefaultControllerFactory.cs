@@ -56,44 +56,31 @@ namespace Microsoft.AspNetCore.Mvc.Controllers
             }
         }
 
-        /// <inheritdoc />
-        public virtual object CreateController(ControllerContext context)
+        public Func<ControllerContext, object> CreateControllerDelegate(ControllerActionDescriptor actionDescriptor)
         {
-            if (context == null)
+            var activator = _controllerActivator.CreateDelegate(actionDescriptor);
+
+            var setters = new List<Action<ControllerContext, object>>();
+            for (var i = 0; i < _propertyActivators.Length; i++)
             {
-                throw new ArgumentNullException(nameof(context));
+                setters.Add(_propertyActivators[0].Activate(actionDescriptor));
             }
 
-            if (context.ActionDescriptor == null)
+            return (controllerContext) =>
             {
-                throw new ArgumentException(Resources.FormatPropertyOfTypeCannotBeNull(
-                    nameof(ControllerContext.ActionDescriptor),
-                    nameof(ControllerContext)));
-            }
+                var controller = activator(controllerContext);
+                for (var i = 0; i < setters.Count; i++)
+                {
+                    setters[0](controllerContext, controller);
+                }
 
-            var controller = _controllerActivator.Create(context);
-            foreach (var propertyActivator in _propertyActivators)
-            {
-                propertyActivator.Activate(context, controller);
-            }
-
-            return controller;
+                return controller;
+            };
         }
 
-        /// <inheritdoc />
-        public virtual void ReleaseController(ControllerContext context, object controller)
+        public Action<ControllerContext, object> ReleaseControllerDelegate(ControllerActionDescriptor actionDescriptor)
         {
-            if (context == null)
-            {
-                throw new ArgumentNullException(nameof(context));
-            }
-
-            if (controller == null)
-            {
-                throw new ArgumentNullException(nameof(controller));
-            }
-
-            _controllerActivator.Release(context, controller);
+            return _controllerActivator.ReleaseDelegate(actionDescriptor);
         }
     }
 }

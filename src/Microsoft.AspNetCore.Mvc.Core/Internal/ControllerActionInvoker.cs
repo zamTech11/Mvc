@@ -21,11 +21,12 @@ namespace Microsoft.AspNetCore.Mvc.Internal
 {
     public class ControllerActionInvoker : IActionInvoker
     {
-        private readonly IControllerFactory _controllerFactory;
         private readonly IControllerArgumentBinder _controllerArgumentBinder;
         private readonly DiagnosticSource _diagnosticSource;
         private readonly ILogger _logger;
 
+        private readonly Func<ControllerContext, object> _controllerCreate;
+        private readonly Action<ControllerContext, object> _controllerRelease;
         private readonly ControllerContext _controllerContext;
         private readonly IFilterMetadata[] _filters;
         private readonly ObjectMethodExecutor _executor;
@@ -50,7 +51,6 @@ namespace Microsoft.AspNetCore.Mvc.Internal
 
         public ControllerActionInvoker(
             ControllerActionInvokerCache cache,
-            IControllerFactory controllerFactory,
             IControllerArgumentBinder controllerArgumentBinder,
             ILogger logger,
             DiagnosticSource diagnosticSource,
@@ -61,11 +61,6 @@ namespace Microsoft.AspNetCore.Mvc.Internal
             if (cache == null)
             {
                 throw new ArgumentNullException(nameof(cache));
-            }
-
-            if (controllerFactory == null)
-            {
-                throw new ArgumentNullException(nameof(controllerFactory));
             }
 
             if (controllerArgumentBinder == null)
@@ -93,7 +88,6 @@ namespace Microsoft.AspNetCore.Mvc.Internal
                 throw new ArgumentNullException(nameof(valueProviderFactories));
             }
             
-            _controllerFactory = controllerFactory;
             _controllerArgumentBinder = controllerArgumentBinder;
             _logger = logger;
             _diagnosticSource = diagnosticSource;
@@ -107,6 +101,8 @@ namespace Microsoft.AspNetCore.Mvc.Internal
             var cacheEntry = cache.GetState(_controllerContext);
             _filters = cacheEntry.Filters;
             _executor = cacheEntry.ActionMethodExecutor;
+            _controllerCreate = cacheEntry.CreateController;
+            _controllerRelease = cacheEntry.ReleaseController;
             _cursor = new FilterCursor(_filters);
         }
 
@@ -134,7 +130,7 @@ namespace Microsoft.AspNetCore.Mvc.Internal
                 // that.
                 if (_controller != null)
                 {
-                    _controllerFactory.ReleaseController(_controllerContext, _controller);
+                    _controllerRelease(_controllerContext, _controller);
                 }
             }
 
@@ -459,7 +455,7 @@ namespace Microsoft.AspNetCore.Mvc.Internal
         {
             _cursor.Reset();
 
-            _controller = _controllerFactory.CreateController(_controllerContext);
+            _controller = _controllerCreate(_controllerContext);
 
             var arguments = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
             await _controllerArgumentBinder.BindArgumentsAsync(_controllerContext, _controller, arguments);

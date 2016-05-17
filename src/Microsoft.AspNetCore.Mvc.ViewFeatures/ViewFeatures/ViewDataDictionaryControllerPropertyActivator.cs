@@ -3,6 +3,7 @@
 
 using System;
 using System.Collections.Concurrent;
+using System.Linq;
 using Microsoft.AspNetCore.Mvc.Controllers;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.Extensions.Internal;
@@ -23,20 +24,6 @@ namespace Microsoft.AspNetCore.Mvc.ViewFeatures
             _getPropertiesToActivate = GetPropertiesToActivate;
         }
 
-        public void Activate(ControllerContext actionContext, object controller)
-        {
-            var controllerType = controller.GetType();
-            var propertiesToActivate = _activateActions.GetOrAdd(
-                controllerType,
-                _getPropertiesToActivate);
-
-            for (var i = 0; i < propertiesToActivate.Length; i++)
-            {
-                var activateInfo = propertiesToActivate[i];
-                activateInfo.Activate(controller, actionContext);
-            }
-        }
-
         private PropertyActivator<ControllerContext>[] GetPropertiesToActivate(Type type)
         {
             var activators = PropertyActivator<ControllerContext>.GetPropertiesToActivate(
@@ -52,6 +39,18 @@ namespace Microsoft.AspNetCore.Mvc.ViewFeatures
             return new ViewDataDictionary(
                 _modelMetadataProvider,
                 context.ModelState);
+        }
+
+        public Action<ControllerContext, object> Activate(ControllerActionDescriptor actionDescriptor)
+        {
+            var controllerType = actionDescriptor.ControllerTypeInfo.AsType();
+            var propertiesToActivate = _activateActions.GetOrAdd(
+                controllerType,
+                _getPropertiesToActivate);
+
+            var activator = propertiesToActivate.Last();
+
+            return (controllerContext, controller) => { activator.Activate(controller, controllerContext); };
         }
     }
 }

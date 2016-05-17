@@ -1,6 +1,8 @@
 // Copyright (c) .NET Foundation. All rights reserved.
 // Licensed under the Apache License, Version 2.0. See License.txt in the project root for license information.
 
+using System;
+
 namespace Microsoft.AspNetCore.Mvc.Controllers
 {
     /// <summary>
@@ -8,18 +10,8 @@ namespace Microsoft.AspNetCore.Mvc.Controllers
     /// </summary>
     public interface IControllerFactory
     {
-        /// <summary>
-        /// Creates a new controller for the specified <paramref name="context"/>.
-        /// </summary>
-        /// <param name="context"><see cref="ControllerContext"/> for the action to execute.</param>
-        /// <returns>The controller.</returns>
-        object CreateController(ControllerContext context);
+        Func<ControllerContext, object> CreateControllerDelegate(ControllerActionDescriptor actionDescriptor);
 
-        /// <summary>
-        /// Releases a controller instance.
-        /// </summary>
-        /// <param name="context"><see cref="ControllerContext"/> for the executing action.</param>
-        /// <param name="controller">The controller.</param>
-        void ReleaseController(ControllerContext context, object controller);
+        Action<ControllerContext, object> ReleaseControllerDelegate(ControllerActionDescriptor actionDescriptor);
     }
 }

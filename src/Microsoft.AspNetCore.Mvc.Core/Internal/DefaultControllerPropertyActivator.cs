@@ -21,18 +21,16 @@ namespace Microsoft.AspNetCore.Mvc.Internal
             _getPropertiesToActivate = GetPropertiesToActivate;
         }
 
-        public void Activate(ControllerContext context, object controller)
+        public Action<ControllerContext, object> Activate(ControllerActionDescriptor actionDescriptor)
         {
-            var controllerType = controller.GetType();
+            var controllerType = actionDescriptor.ControllerTypeInfo.AsType();
             var propertiesToActivate = _activateActions.GetOrAdd(
                 controllerType,
                 _getPropertiesToActivate);
 
-            for (var i = 0; i < propertiesToActivate.Length; i++)
-            {
-                var activateInfo = propertiesToActivate[i];
-                activateInfo.Activate(controller, context);
-            }
+            var activator = propertiesToActivate.Last();
+
+            return (controllerContext, controller) => { activator.Activate(controller, controllerContext); };
         }
 
         private PropertyActivator<ControllerContext>[] GetPropertiesToActivate(Type type)

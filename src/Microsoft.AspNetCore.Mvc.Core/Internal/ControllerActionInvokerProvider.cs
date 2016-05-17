@@ -16,7 +16,6 @@ namespace Microsoft.AspNetCore.Mvc.Internal
     public class ControllerActionInvokerProvider : IActionInvokerProvider
     {
         private readonly IControllerArgumentBinder _argumentBinder;
-        private readonly IControllerFactory _controllerFactory;
         private readonly ControllerActionInvokerCache _controllerActionInvokerCache;
         private readonly IReadOnlyList<IValueProviderFactory> _valueProviderFactories;
         private readonly int _maxModelValidationErrors;
@@ -31,7 +30,6 @@ namespace Microsoft.AspNetCore.Mvc.Internal
             ILoggerFactory loggerFactory,
             DiagnosticSource diagnosticSource)
         {
-            _controllerFactory = controllerFactory;
             _controllerActionInvokerCache = controllerActionInvokerCache;
             _argumentBinder = argumentBinder;
             _valueProviderFactories = optionsAccessor.Value.ValueProviderFactories.ToArray();
@@ -59,7 +57,6 @@ namespace Microsoft.AspNetCore.Mvc.Internal
             {
                 context.Result = new ControllerActionInvoker(
                     _controllerActionInvokerCache,
-                    _controllerFactory,
                     _argumentBinder,
                     _logger,
                     _diagnosticSource,
