@@ -3,7 +3,6 @@
 
 using System;
 using System.ComponentModel.DataAnnotations;
-using System.Linq;
 using Microsoft.AspNetCore.Mvc.ModelBinding.Validation;
 using Microsoft.Extensions.Localization;
 using Microsoft.Extensions.Options;
@@ -29,6 +28,19 @@ namespace Microsoft.AspNetCore.Mvc.DataAnnotations.Internal
         /// <param name="validationAttributeAdapterProvider">The <see cref="IValidationAttributeAdapterProvider"/>
         /// that supplies <see cref="IAttributeAdapter"/>s.</param>
         /// <param name="options">The <see cref="IOptions{MvcDataAnnotationsLocalizationOptions}"/>.</param>
+        public DataAnnotationsClientModelValidatorProvider(
+            IValidationAttributeAdapterProvider validationAttributeAdapterProvider,
+            IOptions<MvcDataAnnotationsLocalizationOptions> options)
+            : this(validationAttributeAdapterProvider, options, stringLocalizerFactory: null)
+        {
+        }
+
+        /// <summary>
+        /// Create a new instance of <see cref="DataAnnotationsClientModelValidatorProvider"/>.
+        /// </summary>
+        /// <param name="validationAttributeAdapterProvider">The <see cref="IValidationAttributeAdapterProvider"/>
+        /// that supplies <see cref="IAttributeAdapter"/>s.</param>
+        /// <param name="options">The <see cref="IOptions{MvcDataAnnotationsLocalizationOptions}"/>.</param>
         /// <param name="stringLocalizerFactory">The <see cref="IStringLocalizerFactory"/>.</param>
         public DataAnnotationsClientModelValidatorProvider(
             IValidationAttributeAdapterProvider validationAttributeAdapterProvider,
@@ -39,6 +51,7 @@ namespace Microsoft.AspNetCore.Mvc.DataAnnotations.Internal
             {
                 throw new ArgumentNullException(nameof(validationAttributeAdapterProvider));
             }
+
             if (options == null)
             {
                 throw new ArgumentNullException(nameof(options));
@@ -56,6 +69,7 @@ namespace Microsoft.AspNetCore.Mvc.DataAnnotations.Internal
             {
                 throw new ArgumentNullException(nameof(context));
             }
+
             IStringLocalizer stringLocalizer = null;
             if (_options.Value.DataAnnotationLocalizerProvider != null && _stringLocalizerFactory != null)
             {

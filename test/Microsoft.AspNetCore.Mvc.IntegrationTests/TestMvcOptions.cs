@@ -7,12 +7,10 @@ using Microsoft.AspNetCore.Mvc.DataAnnotations.Internal;
 using Microsoft.AspNetCore.Mvc.Formatters;
 using Microsoft.AspNetCore.Mvc.Formatters.Json.Internal;
 using Microsoft.AspNetCore.Mvc.Internal;
-using Microsoft.AspNetCore.Mvc.ModelBinding;
-using Microsoft.AspNetCore.Mvc.ModelBinding.Metadata;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.ObjectPool;
 using Microsoft.Extensions.Options;
+using Moq;
 
 namespace Microsoft.AspNetCore.Mvc.IntegrationTests
 {
@@ -24,13 +22,11 @@ namespace Microsoft.AspNetCore.Mvc.IntegrationTests
             var optionsSetup = new MvcCoreMvcOptionsSetup(new TestHttpRequestStreamReaderFactory());
             optionsSetup.Configure(Value);
 
-            var collection = new ServiceCollection().AddOptions();
-            collection.AddSingleton<ICompositeMetadataDetailsProvider, DefaultCompositeMetadataDetailsProvider>();
-            collection.AddSingleton<IModelMetadataProvider, DefaultModelMetadataProvider>();
-            collection.AddSingleton<IValidationAttributeAdapterProvider, ValidationAttributeAdapterProvider>();
             MvcDataAnnotationsMvcOptionsSetup.ConfigureMvc(
                 Value,
-                collection.BuildServiceProvider());
+                new DataAnnotationsModelValidatorProvider(
+                    new ValidationAttributeAdapterProvider(),
+                    Mock.Of<IOptions<MvcDataAnnotationsLocalizationOptions>>()));
 
             var loggerFactory = new LoggerFactory();
             var serializerSettings = JsonSerializerSettingsProvider.CreateSerializerSettings();

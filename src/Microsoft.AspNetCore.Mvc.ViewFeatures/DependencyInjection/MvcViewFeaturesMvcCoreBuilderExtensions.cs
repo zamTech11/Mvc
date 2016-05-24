@@ -7,6 +7,7 @@ using System.Linq;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ApplicationParts;
 using Microsoft.AspNetCore.Mvc.Controllers;
+using Microsoft.AspNetCore.Mvc.DataAnnotations.Internal;
 using Microsoft.AspNetCore.Mvc.Formatters;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.AspNetCore.Mvc.ViewComponents;
@@ -163,6 +164,12 @@ namespace Microsoft.Extensions.DependencyInjection
 
             services.TryAddSingleton(ArrayPool<ViewBufferValue>.Shared);
             services.TryAddScoped<IViewBufferScope, MemoryPoolViewBufferScope>();
+
+            //
+            // Validation
+            // 
+            services.TryAddSingleton<DataAnnotationsClientModelValidatorProvider>();
+            services.TryAddSingleton<DataAnnotationsModelValidatorProvider>();
         }
     }
 }

@@ -29,9 +29,21 @@ namespace Microsoft.AspNetCore.Mvc.DataAnnotations.Internal
         /// <param name="validationAttributeAdapterProvider">The <see cref="IValidationAttributeAdapterProvider"/>
         /// that supplies <see cref="IAttributeAdapter"/>s.</param>
         /// <param name="options">The <see cref="IOptions{MvcDataAnnotationsLocalizationOptions}"/>.</param>
+        public DataAnnotationsModelValidatorProvider(
+            IValidationAttributeAdapterProvider validationAttributeAdapterProvider,
+            IOptions<MvcDataAnnotationsLocalizationOptions> options)
+            : this(validationAttributeAdapterProvider, options, stringLocalizerFactory: null)
+        {
+        }
+
+        /// <summary>
+        /// Create a new instance of <see cref="DataAnnotationsModelValidatorProvider"/>.
+        /// </summary>
+        /// <param name="validationAttributeAdapterProvider">The <see cref="IValidationAttributeAdapterProvider"/>
+        /// that supplies <see cref="IAttributeAdapter"/>s.</param>
+        /// <param name="options">The <see cref="IOptions{MvcDataAnnotationsLocalizationOptions}"/>.</param>
         /// <param name="stringLocalizerFactory">The <see cref="IStringLocalizerFactory"/>.</param>
-        /// <remarks><paramref name="options"/> and <paramref name="stringLocalizerFactory"/>
-        /// are nullable only for testing ease.</remarks>
+        /// <remarks><paramref name="stringLocalizerFactory"/> is nullable only for testing ease.</remarks>
         public DataAnnotationsModelValidatorProvider(
             IValidationAttributeAdapterProvider validationAttributeAdapterProvider,
             IOptions<MvcDataAnnotationsLocalizationOptions> options,
@@ -41,6 +53,7 @@ namespace Microsoft.AspNetCore.Mvc.DataAnnotations.Internal
             {
                 throw new ArgumentNullException(nameof(validationAttributeAdapterProvider));
             }
+
             if (options == null)
             {
                 throw new ArgumentNullException(nameof(options));
