@@ -41,35 +41,7 @@ namespace Microsoft.AspNetCore.Mvc
 
             // Assert
             MediaTypeAssert.Equal("text/plain; charset=utf-7", httpContext.Response.ContentType);
-        }
-
-        [Fact]
-        public async Task ContentResult_DisablesResponseBuffering_IfBufferingFeatureAvailable()
-        {
-            // Arrange
-            var data = "Test Content";
-            var contentResult = new ContentResult
-            {
-                Content = data,
-                ContentType = new MediaTypeHeaderValue("text/plain")
-                {
-                    Encoding = Encoding.ASCII
-                }.ToString()
-            };
-            var httpContext = GetHttpContext();
-            httpContext.Features.Set<IHttpBufferingFeature>(new TestBufferingFeature());
-            var memoryStream = new MemoryStream();
-            httpContext.Response.Body = memoryStream;
-            var actionContext = GetActionContext(httpContext);
-
-            // Act
-            await contentResult.ExecuteResultAsync(actionContext);
-
-            // Assert
-            Assert.Equal("text/plain; charset=us-ascii", httpContext.Response.ContentType);
-            Assert.Equal(Encoding.ASCII.GetString(memoryStream.ToArray()), data);
-            var bufferingFeature = (TestBufferingFeature)httpContext.Features.Get<IHttpBufferingFeature>();
-            Assert.True(bufferingFeature.DisableResponseBufferingInvoked);
+            Assert.Equal(0, httpContext.Response.ContentLength);
         }
 
         public static TheoryData<MediaTypeHeaderValue, string, string, string, byte[]> ContentResultContentTypeData
@@ -167,6 +139,7 @@ namespace Microsoft.AspNetCore.Mvc
             var finalResponseContentType = httpContext.Response.ContentType;
             Assert.Equal(expectedContentType, finalResponseContentType);
             Assert.Equal(expectedContentData, memoryStream.ToArray());
+            Assert.Equal(expectedContentData.Length, httpContext.Response.ContentLength);
         }
 
         private static ActionContext GetActionContext(HttpContext httpContext)

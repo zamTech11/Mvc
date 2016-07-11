@@ -67,13 +67,17 @@ namespace Microsoft.AspNetCore.Mvc
 
             if (Content != null)
             {
-                var bufferingFeature = response.HttpContext.Features.Get<IHttpBufferingFeature>();
-                bufferingFeature?.DisableResponseBuffering();
+                var data = resolvedContentTypeEncoding.GetBytes(Content);
 
-                return response.WriteAsync(Content, resolvedContentTypeEncoding);
+                response.ContentLength = data.Length;
+
+                return response.Body.WriteAsync(data, 0, data.Length);
             }
-
-            return TaskCache.CompletedTask;
+            else
+            {
+                response.ContentLength = 0;
+                return TaskCache.CompletedTask;
+            }
         }
     }
 }
