@@ -40,7 +40,6 @@ namespace Microsoft.AspNetCore.Mvc
 
             // Assert
             MediaTypeAssert.Equal("text/plain; charset=utf-7", httpContext.Response.ContentType);
-            Assert.Equal(0, httpContext.Response.ContentLength);
         }
 
         public static TheoryData<MediaTypeHeaderValue, string, string, string, byte[]> ContentResultContentTypeData
