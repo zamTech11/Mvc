@@ -6,6 +6,7 @@ using System.Text;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.Abstractions;
+using Microsoft.AspNetCore.Mvc.Internal;
 using Microsoft.AspNetCore.Mvc.TestCommon;
 using Microsoft.AspNetCore.Mvc.ViewComponents;
 using Microsoft.AspNetCore.Routing;
@@ -140,6 +141,65 @@ namespace Microsoft.AspNetCore.Mvc
             Assert.Equal(expectedContentData.Length, httpContext.Response.ContentLength);
         }
 
+        public static TheoryData<string, string> ContentResult_WritesDataCorrectly_ForDifferentContentSizesData
+        {
+            get
+            {
+                var maxCharacterChunkSize = ContentResultExecutor.MaxCharacterChunkSize;
+
+                // content, contentType
+                return new TheoryData<string, string>
+                {
+                    //色
+                    {  string.Empty, "text/plain; charset=utf-8" },
+                    {  new string('a', maxCharacterChunkSize), "text/plain; charset=utf-8" },
+                    {  new string('a', maxCharacterChunkSize - 1), "text/plain; charset=utf-8" },
+                    {  new string('a', maxCharacterChunkSize + 1), "text/plain; charset=utf-8" },
+                    {  new string('a', maxCharacterChunkSize - 2), "text/plain; charset=utf-8" },
+                    {  new string('a', maxCharacterChunkSize + 2), "text/plain; charset=utf-8" },
+                    {  new string('a', maxCharacterChunkSize - 3), "text/plain; charset=utf-8" },
+                    {  new string('a', maxCharacterChunkSize + 3), "text/plain; charset=utf-8" },
+                    {  new string('a', maxCharacterChunkSize * 2), "text/plain; charset=utf-8" },
+                    {  new string('a', maxCharacterChunkSize * 3), "text/plain; charset=utf-8" },
+                    {  new string('色', maxCharacterChunkSize), "text/plain; charset=utf-8" },
+                    {  new string('色', maxCharacterChunkSize - 1), "text/plain; charset=utf-8" },
+                    {  new string('色', maxCharacterChunkSize + 1), "text/plain; charset=utf-8" },
+                    {  new string('色', maxCharacterChunkSize - 2), "text/plain; charset=utf-8" },
+                    {  new string('色', maxCharacterChunkSize + 2), "text/plain; charset=utf-8" },
+                    {  new string('色', maxCharacterChunkSize - 3), "text/plain; charset=utf-8" },
+                    {  new string('色', maxCharacterChunkSize + 3), "text/plain; charset=utf-8" },
+                    {  new string('色', maxCharacterChunkSize * 2), "text/plain; charset=utf-8" },
+                    {  new string('色', maxCharacterChunkSize * 3), "text/plain; charset=utf-8" }
+                };
+            }
+        }
+
+        [Theory]
+        [MemberData(nameof(ContentResult_WritesDataCorrectly_ForDifferentContentSizesData))]
+        public async Task ContentResult_WritesDataCorrectly_ForDifferentContentSizes(string content, string contentType)
+        {
+            // Arrange
+            var contentResult = new ContentResult
+            {
+                Content = content,
+                ContentType = contentType
+            };
+            var httpContext = GetHttpContext();
+            var memoryStream = new MemoryStream();
+            httpContext.Response.Body = memoryStream;
+            var actionContext = GetActionContext(httpContext);
+            var encoding = MediaTypeHeaderValue.Parse(contentType).Encoding;
+
+            // Act
+            await contentResult.ExecuteResultAsync(actionContext);
+
+            // Assert
+            memoryStream.Seek(0, SeekOrigin.Begin);
+            var streamReader = new StreamReader(memoryStream);
+            var actualContent = await streamReader.ReadToEndAsync();
+            Assert.Equal(content, actualContent);
+        }
+
         private static ActionContext GetActionContext(HttpContext httpContext)
         {
             var routeData = new RouteData();
@@ -153,7 +213,7 @@ namespace Microsoft.AspNetCore.Mvc
         private static IServiceCollection CreateServices(params ViewComponentDescriptor[] descriptors)
         {
             var services = new ServiceCollection();
-            services.AddSingleton<ILoggerFactory>(NullLoggerFactory.Instance);
+            services.AddSingleton(new ContentResultExecutor(new Logger<ContentResultExecutor>(NullLoggerFactory.Instance)));
             return services;
         }
 

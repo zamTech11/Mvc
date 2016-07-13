@@ -2728,9 +2728,6 @@ namespace Microsoft.AspNetCore.Mvc.Internal
 
             httpContext.SetupGet(c => c.Request).Returns(httpRequest);
             httpContext.SetupGet(c => c.Response).Returns(httpResponse);
-            httpContext
-                .Setup(o => o.RequestServices.GetService(typeof(ILoggerFactory)))
-                .Returns(NullLoggerFactory.Instance);
 
             httpResponse.Body = new MemoryStream();
 
@@ -2755,6 +2752,10 @@ namespace Microsoft.AspNetCore.Mvc.Internal
                 .Returns(options);
 
             httpContext
+                .Setup(o => o.RequestServices.GetService(typeof(ILoggerFactory)))
+                .Returns(NullLoggerFactory.Instance);
+
+            httpContext
                 .Setup(o => o.RequestServices.GetService(typeof(IOptions<MvcOptions>)))
                 .Returns(optionsAccessor.Object);
             httpContext.SetupGet(c => c.Items)
@@ -2766,6 +2767,10 @@ namespace Microsoft.AspNetCore.Mvc.Internal
                     optionsAccessor.Object,
                     new TestHttpResponseStreamWriterFactory(),
                     NullLoggerFactory.Instance));
+
+            httpContext
+                .Setup(o => o.RequestServices.GetService(typeof(ContentResultExecutor)))
+                .Returns(new ContentResultExecutor(new Logger<ContentResultExecutor>(NullLoggerFactory.Instance)));
 
             if (routeData == null)
             {
