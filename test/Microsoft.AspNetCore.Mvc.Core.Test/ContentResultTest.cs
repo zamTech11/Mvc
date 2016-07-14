@@ -1,6 +1,7 @@
 // Copyright (c) .NET Foundation. All rights reserved.
 // Licensed under the Apache License, Version 2.0. See License.txt in the project root for license information.
 
+using System.Buffers;
 using System.IO;
 using System.Text;
 using System.Threading.Tasks;
@@ -150,7 +151,6 @@ namespace Microsoft.AspNetCore.Mvc
                 // content, contentType
                 return new TheoryData<string, string>
                 {
-                    //色
                     {  string.Empty, "text/plain; charset=utf-8" },
                     {  new string('a', maxCharacterChunkSize), "text/plain; charset=utf-8" },
                     {  new string('a', maxCharacterChunkSize - 1), "text/plain; charset=utf-8" },
@@ -161,15 +161,24 @@ namespace Microsoft.AspNetCore.Mvc
                     {  new string('a', maxCharacterChunkSize + 3), "text/plain; charset=utf-8" },
                     {  new string('a', maxCharacterChunkSize * 2), "text/plain; charset=utf-8" },
                     {  new string('a', maxCharacterChunkSize * 3), "text/plain; charset=utf-8" },
-                    {  new string('色', maxCharacterChunkSize), "text/plain; charset=utf-8" },
-                    {  new string('色', maxCharacterChunkSize - 1), "text/plain; charset=utf-8" },
-                    {  new string('色', maxCharacterChunkSize + 1), "text/plain; charset=utf-8" },
-                    {  new string('色', maxCharacterChunkSize - 2), "text/plain; charset=utf-8" },
-                    {  new string('色', maxCharacterChunkSize + 2), "text/plain; charset=utf-8" },
-                    {  new string('色', maxCharacterChunkSize - 3), "text/plain; charset=utf-8" },
-                    {  new string('色', maxCharacterChunkSize + 3), "text/plain; charset=utf-8" },
-                    {  new string('色', maxCharacterChunkSize * 2), "text/plain; charset=utf-8" },
-                    {  new string('色', maxCharacterChunkSize * 3), "text/plain; charset=utf-8" }
+                    {  new string('色', maxCharacterChunkSize), "text/plain; charset=utf-16" },
+                    {  new string('色', maxCharacterChunkSize - 1), "text/plain; charset=utf-16" },
+                    {  new string('色', maxCharacterChunkSize + 1), "text/plain; charset=utf-16" },
+                    {  new string('色', maxCharacterChunkSize - 2), "text/plain; charset=utf-16" },
+                    {  new string('色', maxCharacterChunkSize + 2), "text/plain; charset=utf-16" },
+                    {  new string('色', maxCharacterChunkSize - 3), "text/plain; charset=utf-16" },
+                    {  new string('色', maxCharacterChunkSize + 3), "text/plain; charset=utf-16" },
+                    {  new string('色', maxCharacterChunkSize * 2), "text/plain; charset=utf-16" },
+                    {  new string('色', maxCharacterChunkSize * 3), "text/plain; charset=utf-16" },
+                    {  new string('色', maxCharacterChunkSize), "text/plain; charset=utf-32" },
+                    {  new string('色', maxCharacterChunkSize - 1), "text/plain; charset=utf-32" },
+                    {  new string('色', maxCharacterChunkSize + 1), "text/plain; charset=utf-32" },
+                    {  new string('色', maxCharacterChunkSize - 2), "text/plain; charset=utf-32" },
+                    {  new string('色', maxCharacterChunkSize + 2), "text/plain; charset=utf-32" },
+                    {  new string('色', maxCharacterChunkSize - 3), "text/plain; charset=utf-32" },
+                    {  new string('色', maxCharacterChunkSize + 3), "text/plain; charset=utf-32" },
+                    {  new string('色', maxCharacterChunkSize * 2), "text/plain; charset=utf-32" },
+                    {  new string('色', maxCharacterChunkSize * 3), "text/plain; charset=utf-32" }
                 };
             }
         }
@@ -195,7 +204,7 @@ namespace Microsoft.AspNetCore.Mvc
 
             // Assert
             memoryStream.Seek(0, SeekOrigin.Begin);
-            var streamReader = new StreamReader(memoryStream);
+            var streamReader = new StreamReader(memoryStream, encoding);
             var actualContent = await streamReader.ReadToEndAsync();
             Assert.Equal(content, actualContent);
         }
@@ -213,7 +222,9 @@ namespace Microsoft.AspNetCore.Mvc
         private static IServiceCollection CreateServices(params ViewComponentDescriptor[] descriptors)
         {
             var services = new ServiceCollection();
-            services.AddSingleton(new ContentResultExecutor(new Logger<ContentResultExecutor>(NullLoggerFactory.Instance)));
+            services.AddSingleton(new ContentResultExecutor(
+                new Logger<ContentResultExecutor>(NullLoggerFactory.Instance),
+                ArrayPool<byte>.Shared));
             return services;
         }
 

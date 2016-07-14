@@ -17,16 +17,14 @@ namespace Microsoft.AspNetCore.Mvc.Internal
         /// </summary>
         public const int MaxCharacterChunkSize = 1024;
 
-        private readonly string DefaultContentType = new MediaTypeHeaderValue("text/plain")
-        {
-            Encoding = Encoding.UTF8
-        }.ToString();
-
+        private const string DefaultContentType = "text/plain; charset=utf-8";
+        private readonly ArrayPool<byte> _byteArrayPool;
         private readonly ILogger<ContentResultExecutor> _logger;
 
-        public ContentResultExecutor(ILogger<ContentResultExecutor> logger)
+        public ContentResultExecutor(ILogger<ContentResultExecutor> logger, ArrayPool<byte> byteArrayPool)
         {
             _logger = logger;
+            _byteArrayPool = byteArrayPool;
         }
 
         public async Task ExecuteAsync(ActionContext context, ContentResult result)
@@ -66,7 +64,7 @@ namespace Microsoft.AspNetCore.Mvc.Internal
                 response.ContentLength = resolvedContentTypeEncoding.GetByteCount(result.Content);
 
                 var requiredLength = resolvedContentTypeEncoding.GetMaxByteCount(MaxCharacterChunkSize);
-                var byteBuffer = ArrayPool<byte>.Shared.Rent(requiredLength);
+                var byteBuffer = _byteArrayPool.Rent(requiredLength);
 
                 try
                 {
@@ -85,7 +83,7 @@ namespace Microsoft.AspNetCore.Mvc.Internal
                 }
                 finally
                 {
-                    ArrayPool<byte>.Shared.Return(byteBuffer);
+                    _byteArrayPool.Return(byteBuffer);
                 }
             }
         }

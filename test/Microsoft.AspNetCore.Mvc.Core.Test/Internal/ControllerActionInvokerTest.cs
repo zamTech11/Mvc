@@ -2,6 +2,7 @@
 // Licensed under the Apache License, Version 2.0. See License.txt in the project root for license information.
 
 using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
@@ -2770,7 +2771,9 @@ namespace Microsoft.AspNetCore.Mvc.Internal
 
             httpContext
                 .Setup(o => o.RequestServices.GetService(typeof(ContentResultExecutor)))
-                .Returns(new ContentResultExecutor(new Logger<ContentResultExecutor>(NullLoggerFactory.Instance)));
+                .Returns(new ContentResultExecutor(
+                    new Logger<ContentResultExecutor>(NullLoggerFactory.Instance),
+                    ArrayPool<byte>.Shared));
 
             if (routeData == null)
             {
