@@ -247,6 +247,38 @@ namespace Microsoft.AspNetCore.Mvc
             Assert.Equal(content, actualContent);
         }
 
+        [Theory]
+        [InlineData(ContentResultExecutor.MaxCharacterChunkSize)]
+        [InlineData(ContentResultExecutor.MaxCharacterChunkSize * 2)]
+        [InlineData(ContentResultExecutor.MaxCharacterChunkSize * 3)]
+        public async Task ContentResult_WritesDataCorrectly_ForCharactersHavingSurrogatePairs(int characterSize)
+        {
+            // Arrange
+            // Here "𐐀" (called Deseret Long I) actually represents 2 characters. Try to make this character split across
+            // the boundary
+            var content = new string('a', characterSize - 1) + "𐐀";
+            var contentType = "text/plain; charset=utf-8";
+            var contentResult = new ContentResult
+            {
+                Content = content,
+                ContentType = contentType
+            };
+            var httpContext = GetHttpContext();
+            var memoryStream = new MemoryStream();
+            httpContext.Response.Body = memoryStream;
+            var actionContext = GetActionContext(httpContext);
+            var encoding = MediaTypeHeaderValue.Parse(contentType).Encoding;
+
+            // Act
+            await contentResult.ExecuteResultAsync(actionContext);
+
+            // Assert
+            memoryStream.Seek(0, SeekOrigin.Begin);
+            var streamReader = new StreamReader(memoryStream, encoding);
+            var actualContent = await streamReader.ReadToEndAsync();
+            Assert.Equal(content, actualContent);
+        }
+
         private static ActionContext GetActionContext(HttpContext httpContext)
         {
             var routeData = new RouteData();
@@ -259,10 +291,19 @@ namespace Microsoft.AspNetCore.Mvc
 
         private static IServiceCollection CreateServices(params ViewComponentDescriptor[] descriptors)
         {
+            // An array pool could return a buffer which is greater or equal to the size of the default character
+            // chunk size. Since the tests here depend on a specifc character buffer size to test boundary conditions,
+            // make sure to only return a buffer of that size.
+            var charArrayPool = new Mock<ArrayPool<char>>();
+            charArrayPool
+                .Setup(ap => ap.Rent(ContentResultExecutor.MaxCharacterChunkSize))
+                .Returns(new char[ContentResultExecutor.MaxCharacterChunkSize]);
+
             var services = new ServiceCollection();
             services.AddSingleton(new ContentResultExecutor(
                 new Logger<ContentResultExecutor>(NullLoggerFactory.Instance),
-                ArrayPool<byte>.Shared));
+                ArrayPool<byte>.Shared,
+                charArrayPool.Object));
             return services;
         }
 

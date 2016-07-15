@@ -19,12 +19,14 @@ namespace Microsoft.AspNetCore.Mvc.Internal
 
         private const string DefaultContentType = "text/plain; charset=utf-8";
         private readonly ArrayPool<byte> _byteArrayPool;
+        private readonly ArrayPool<char> _charArrayPool;
         private readonly ILogger<ContentResultExecutor> _logger;
 
-        public ContentResultExecutor(ILogger<ContentResultExecutor> logger, ArrayPool<byte> byteArrayPool)
+        public ContentResultExecutor(ILogger<ContentResultExecutor> logger, ArrayPool<byte> byteArrayPool, ArrayPool<char> charArrayPool)
         {
             _logger = logger;
             _byteArrayPool = byteArrayPool;
+            _charArrayPool = charArrayPool;
         }
 
         public async Task ExecuteAsync(ActionContext context, ContentResult result)
@@ -62,28 +64,51 @@ namespace Microsoft.AspNetCore.Mvc.Internal
             if (result.Content != null)
             {
                 response.ContentLength = resolvedContentTypeEncoding.GetByteCount(result.Content);
-
-                var requiredLength = resolvedContentTypeEncoding.GetMaxByteCount(MaxCharacterChunkSize);
-                var byteBuffer = _byteArrayPool.Rent(requiredLength);
+                var charBuffer = _charArrayPool.Rent(MaxCharacterChunkSize);
+                byte[] byteBuffer = null;
 
                 try
                 {
-                    var sourceIndex = 0;
+                    // Since the buffer returned by ArrayPool could be greater than the size requested for, try to utilize
+                    // that size instead
+                    var requiredByteBufferLength = resolvedContentTypeEncoding.GetMaxByteCount(charBuffer.Length);
+                    byteBuffer = _byteArrayPool.Rent(requiredByteBufferLength);
 
+                    var encoder = resolvedContentTypeEncoding.GetEncoder();
+
+                    var sourceIndex = 0;
+                    var flushEncoder = false;
                     while (sourceIndex < result.Content.Length)
                     {
-                        var charCount = Math.Min(result.Content.Length - sourceIndex, MaxCharacterChunkSize);
+                        var numOfCharsToCopy = Math.Min((result.Content.Length - sourceIndex), charBuffer.Length);
 
-                        var bytesWritten = resolvedContentTypeEncoding.GetBytes(result.Content, sourceIndex, charCount, byteBuffer, 0);
+                        result.Content.CopyTo(
+                            sourceIndex,
+                            charBuffer,
+                            0,
+                            numOfCharsToCopy);
+
+                        sourceIndex += numOfCharsToCopy;
+
+                        if (sourceIndex >= result.Content.Length)
+                        {
+                            flushEncoder = false;
+                        }
+
+                        var bytesWritten = encoder.GetBytes(charBuffer, 0, numOfCharsToCopy, byteBuffer, 0, flushEncoder);
 
                         await response.Body.WriteAsync(byteBuffer, 0, bytesWritten);
-
-                        sourceIndex += charCount;
                     }
                 }
                 finally
                 {
-                    _byteArrayPool.Return(byteBuffer);
+                    // free the buffers
+                    ArrayPool<char>.Shared.Return(charBuffer);
+
+                    if (byteBuffer != null)
+                    {
+                        ArrayPool<byte>.Shared.Return(byteBuffer);
+                    }
                 }
             }
         }
