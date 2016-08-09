@@ -222,6 +222,13 @@ namespace Microsoft.Extensions.DependencyInjection
             //
             services.TryAddSingleton<MvcRouteHandler>(); // Only one per app
             services.TryAddTransient<MvcAttributeRouteHandler>(); // Many per app
+
+            //
+            // Middleware pipeline filter related
+            //
+            services.TryAddSingleton<IMiddlewareFilterConfigurationProvider, DefaultMiddlewareFilterConfigurationProvider>();
+            // This has a cache, so it needs to be a singleton
+            services.TryAddSingleton<MiddlewareFilterBuilderService>();
         }
 
         private static void ConfigureDefaultServices(IServiceCollection services)

@@ -2,10 +2,12 @@
 // Licensed under the Apache License, Version 2.0. See License.txt in the project root for license information.
 
 using System;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Core;
 using Microsoft.AspNetCore.Mvc.Internal;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 
 namespace Microsoft.AspNetCore.Builder
 {
@@ -84,6 +86,9 @@ namespace Microsoft.AspNetCore.Builder
                     "AddMvc",
                     "ConfigureServices(...)"));
             }
+
+            var middlewarePipelineBuilder = app.ApplicationServices.GetRequiredService<MiddlewareFilterBuilderService>();
+            middlewarePipelineBuilder.ApplicationBuilder = app.New();
 
             var routes = new RouteBuilder(app)
             {

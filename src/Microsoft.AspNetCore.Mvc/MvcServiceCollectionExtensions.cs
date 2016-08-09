@@ -62,7 +62,7 @@ namespace Microsoft.Extensions.DependencyInjection
             {
                 partManager.ApplicationParts.Add(new AssemblyPart(mvcTagHelpersAssembly));
             }
-            
+
             var mvcRazorAssembly = typeof(UrlResolutionTagHelper).GetTypeInfo().Assembly;
             if(!partManager.ApplicationParts.OfType<AssemblyPart>().Any(p => p.Assembly == mvcRazorAssembly))
             {
