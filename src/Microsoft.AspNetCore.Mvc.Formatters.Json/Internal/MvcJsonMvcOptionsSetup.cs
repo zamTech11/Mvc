@@ -1,6 +1,7 @@
 // Copyright (c) .NET Foundation. All rights reserved.
 // Licensed under the Apache License, Version 2.0. See License.txt in the project root for license information.
 
+using System;
 using System.Buffers;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.Extensions.Logging;
@@ -15,8 +16,13 @@ namespace Microsoft.AspNetCore.Mvc.Formatters.Json.Internal
     /// <summary>
     /// Sets up JSON formatter options for <see cref="MvcOptions"/>.
     /// </summary>
-    public class MvcJsonMvcOptionsSetup : ConfigureOptions<MvcOptions>
+    public class MvcJsonMvcOptionsSetup : IConfigureOptions<MvcOptions>
     {
+        private ILoggerFactory _loggerFactory;
+        private IOptions<MvcJsonOptions> _jsonOptions;
+        private ArrayPool<char> _charPool;
+        private ObjectPoolProvider _objectPoolProvider;
+
         /// <summary>
         /// Intiailizes a new instance of <see cref="MvcJsonMvcOptionsSetup"/>.
         /// </summary>
@@ -29,38 +35,41 @@ namespace Microsoft.AspNetCore.Mvc.Formatters.Json.Internal
             IOptions<MvcJsonOptions> jsonOptions,
             ArrayPool<char> charPool,
             ObjectPoolProvider objectPoolProvider)
-            : base((options) => ConfigureMvc(
-                options,
-                jsonOptions.Value.SerializerSettings,
-                loggerFactory,
-                charPool,
-                objectPoolProvider))
         {
+            if (loggerFactory == null)
+            {
+                throw new ArgumentNullException(nameof(loggerFactory));
+            }
+            _loggerFactory = loggerFactory;
+
+            if (jsonOptions == null)
+            {
+                throw new ArgumentNullException(nameof(jsonOptions));
+            }
+            _jsonOptions = jsonOptions;
+
+            _charPool = charPool;
+            _objectPoolProvider = objectPoolProvider;
         }
 
-        public static void ConfigureMvc(
-            MvcOptions options,
-            JsonSerializerSettings serializerSettings,
-            ILoggerFactory loggerFactory,
-            ArrayPool<char> charPool,
-            ObjectPoolProvider objectPoolProvider)
+        public void Configure(MvcOptions options)
         {
+            var serializerSettings = _jsonOptions.Value.SerializerSettings;
+            options.OutputFormatters.Add(new JsonOutputFormatter(serializerSettings, _charPool));
 
-            options.OutputFormatters.Add(new JsonOutputFormatter(serializerSettings, charPool));
-
-            var jsonInputLogger = loggerFactory.CreateLogger<JsonInputFormatter>();
+            var jsonInputLogger = _loggerFactory.CreateLogger<JsonInputFormatter>();
             options.InputFormatters.Add(new JsonInputFormatter(
                 jsonInputLogger,
                 serializerSettings,
-                charPool,
-                objectPoolProvider));
+                _charPool,
+                _objectPoolProvider));
 
-            var jsonInputPatchLogger = loggerFactory.CreateLogger<JsonPatchInputFormatter>();
+            var jsonInputPatchLogger = _loggerFactory.CreateLogger<JsonPatchInputFormatter>();
             options.InputFormatters.Add(new JsonPatchInputFormatter(
                 jsonInputPatchLogger,
                 serializerSettings,
-                charPool,
-                objectPoolProvider));
+                _charPool,
+                _objectPoolProvider));
 
             options.FormatterMappings.SetMediaTypeMappingForFormat("json", MediaTypeHeaderValue.Parse("application/json"));
 

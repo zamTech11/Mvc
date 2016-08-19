@@ -13,24 +13,29 @@ namespace Microsoft.AspNetCore.Mvc.ViewFeatures.Internal
     /// <summary>
     /// Sets up default options for <see cref="MvcViewOptions"/>.
     /// </summary>
-    public class MvcViewOptionsSetup : ConfigureOptions<MvcViewOptions>
+    public class MvcViewOptionsSetup : IConfigureOptions<MvcViewOptions>
     {
+        private IServiceProvider _serviceProvider;
+
         /// <summary>
         /// Initializes a new instance of <see cref="MvcViewOptionsSetup"/>.
         /// </summary>
         public MvcViewOptionsSetup(IServiceProvider serviceProvider)
-            : base(options => ConfigureMvc(options, serviceProvider))
         {
+            if (serviceProvider == null)
+            {
+                throw new ArgumentNullException(nameof(serviceProvider));
+            }
+
+            _serviceProvider = serviceProvider;
         }
 
-        public static void ConfigureMvc(
-            MvcViewOptions options,
-            IServiceProvider serviceProvider)
+        public void Configure(MvcViewOptions options)
         {
             var dataAnnotationsLocalizationOptions =
-                serviceProvider.GetRequiredService<IOptions<MvcDataAnnotationsLocalizationOptions>>();
-            var stringLocalizerFactory = serviceProvider.GetService<IStringLocalizerFactory>();
-            var validationAttributeAdapterProvider = serviceProvider.GetRequiredService<IValidationAttributeAdapterProvider>();
+                _serviceProvider.GetRequiredService<IOptions<MvcDataAnnotationsLocalizationOptions>>();
+            var stringLocalizerFactory = _serviceProvider.GetService<IStringLocalizerFactory>();
+            var validationAttributeAdapterProvider = _serviceProvider.GetRequiredService<IValidationAttributeAdapterProvider>();
 
             // Set up client validators
             options.ClientModelValidatorProviders.Add(new DefaultClientModelValidatorProvider());

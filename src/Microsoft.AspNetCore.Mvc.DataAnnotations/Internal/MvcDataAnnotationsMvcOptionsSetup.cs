@@ -11,21 +11,28 @@ namespace Microsoft.AspNetCore.Mvc.DataAnnotations.Internal
     /// <summary>
     /// Sets up default options for <see cref="MvcOptions"/>.
     /// </summary>
-    public class MvcDataAnnotationsMvcOptionsSetup : ConfigureOptions<MvcOptions>
+    public class MvcDataAnnotationsMvcOptionsSetup : IConfigureOptions<MvcOptions>
     {
+        private IServiceProvider _serviceProvider;
+
         public MvcDataAnnotationsMvcOptionsSetup(IServiceProvider serviceProvider)
-            : base(options => ConfigureMvc(options, serviceProvider))
         {
+            if (serviceProvider == null)
+            {
+                throw new ArgumentNullException(nameof(serviceProvider));
+            }
+
+            _serviceProvider = serviceProvider;
         }
 
-        public static void ConfigureMvc(MvcOptions options, IServiceProvider serviceProvider)
+        public void Configure(MvcOptions options)
         {
             var dataAnnotationLocalizationOptions =
-                serviceProvider.GetRequiredService<IOptions<MvcDataAnnotationsLocalizationOptions>>();
+                _serviceProvider.GetRequiredService<IOptions<MvcDataAnnotationsLocalizationOptions>>();
 
             // This service will be registered only if AddDataAnnotationsLocalization() is added to service collection.
-            var stringLocalizerFactory = serviceProvider.GetService<IStringLocalizerFactory>();
-            var validationAttributeAdapterProvider = serviceProvider.GetRequiredService<IValidationAttributeAdapterProvider>();
+            var stringLocalizerFactory = _serviceProvider.GetService<IStringLocalizerFactory>();
+            var validationAttributeAdapterProvider = _serviceProvider.GetRequiredService<IValidationAttributeAdapterProvider>();
 
             options.ModelMetadataDetailsProviders.Add(new DataAnnotationsMetadataProvider(stringLocalizerFactory));
 

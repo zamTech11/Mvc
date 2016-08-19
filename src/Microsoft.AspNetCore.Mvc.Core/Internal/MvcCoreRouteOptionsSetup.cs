@@ -10,18 +10,13 @@ namespace Microsoft.AspNetCore.Mvc.Internal
     /// <summary>
     /// Sets up MVC default options for <see cref="RouteOptions"/>.
     /// </summary>
-    public class MvcCoreRouteOptionsSetup : ConfigureOptions<RouteOptions>
+    public class MvcCoreRouteOptionsSetup : IConfigureOptions<RouteOptions>
     {
-        public MvcCoreRouteOptionsSetup()
-            : base(ConfigureRouting)
-        {
-        }
-
         /// <summary>
         /// Configures the <see cref="RouteOptions"/>.
         /// </summary>
         /// <param name="options">The <see cref="RouteOptions"/>.</param>
-        public static void ConfigureRouting(RouteOptions options)
+        public void Configure(RouteOptions options)
         {
             options.ConstraintMap.Add("exists", typeof(KnownRouteValueConstraint));
         }
