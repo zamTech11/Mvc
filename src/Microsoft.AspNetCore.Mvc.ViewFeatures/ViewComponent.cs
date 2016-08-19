@@ -262,7 +262,6 @@ namespace Microsoft.AspNetCore.Mvc
         /// <returns>A <see cref="ViewViewComponentResult"/>.</returns>
         public ViewViewComponentResult View<TModel>(string viewName, TModel model)
         {
-            // Do not override ViewData.Model unless passed a non-null value.
             if (model != null)
             {
                 ViewData.Model = model;

@@ -195,7 +195,6 @@ namespace Microsoft.AspNetCore.Mvc
         [NonAction]
         public virtual PartialViewResult PartialView(string viewName, object model)
         {
-            // Do not override ViewData.Model unless passed a non-null value.
             if (model != null)
             {
                 ViewData.Model = model;
