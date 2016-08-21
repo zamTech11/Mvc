@@ -226,8 +226,8 @@ namespace Microsoft.Extensions.DependencyInjection
             //
             // Middleware pipeline filter related
             //
-            services.TryAddSingleton<IMiddlewareFilterConfigurationProvider, DefaultMiddlewareFilterConfigurationProvider>();
-            // This has a cache, so it needs to be a singleton
+            services.TryAddSingleton<MiddlewareFilterConfigurationProvider>();
+            // This maintains a cache of middleware pipelines, so it needs to be a singleton
             services.TryAddSingleton<MiddlewareFilterBuilderService>();
         }
 

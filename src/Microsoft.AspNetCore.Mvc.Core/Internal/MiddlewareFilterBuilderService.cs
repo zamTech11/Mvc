@@ -15,19 +15,18 @@ namespace Microsoft.AspNetCore.Mvc.Internal
     {
         private readonly ConcurrentDictionary<Type, Lazy<RequestDelegate>> _pipelinesCache
             = new ConcurrentDictionary<Type, Lazy<RequestDelegate>>();
-        private readonly IMiddlewareFilterConfigurationProvider _middlewareFilterConfigurationProvider;
+        private readonly MiddlewareFilterConfigurationProvider _configurationProvider;
 
         public IApplicationBuilder ApplicationBuilder { get; set; }
 
-        public MiddlewareFilterBuilderService(IMiddlewareFilterConfigurationProvider middlewareFilterConfigurationProvider)
+        public MiddlewareFilterBuilderService(MiddlewareFilterConfigurationProvider middlewareFilterConfigurationProvider)
         {
-            _middlewareFilterConfigurationProvider = middlewareFilterConfigurationProvider;
+            _configurationProvider = middlewareFilterConfigurationProvider;
         }
 
         public RequestDelegate GetPipeline(Type middlewarePipelineProviderType)
         {
-            // Build the pipeline only once. This is similar to how middlewares are used where they are constructed
-            // only once.
+            // Build the pipeline only once. This is similar to how middlewares registered in Startup are constructed.
 
             var requestDelegate = _pipelinesCache.GetOrAdd(
                 middlewarePipelineProviderType,
@@ -38,19 +37,40 @@ namespace Microsoft.AspNetCore.Mvc.Internal
 
         private RequestDelegate BuildPipeline(Type middlewarePipelineProviderType)
         {
+            if (ApplicationBuilder == null)
+            {
+                throw new InvalidOperationException($"{ApplicationBuilder} property cannot be null.");
+            }
+
             var nestedAppBuilder = ApplicationBuilder.New();
 
-            // Get the user provided pipeline
-            _middlewareFilterConfigurationProvider.Configure(middlewarePipelineProviderType, nestedAppBuilder);
+            // Get the 'Configure' method from the user provided type.
+            var configureDelegate = _configurationProvider.CreateConfigureDelegate(middlewarePipelineProviderType);
+            configureDelegate(nestedAppBuilder);
 
-            // Attach a middleware in the end so that it continues the execution of rest of the MVC filter pipeline
+            // The middleware resource filter, after receiving the request executes the user configured middleware
+            // pipeline. Since we want execution of the request to continue to later MVC layers (resource filters
+            // or model binding), add a middleware at the end of the user provided pipeline which make sure to continue
+            // this flow.
+            // Example:
+            // middleware filter -> user-middleware1 -> user-middleware2 -> end-middleware -> resouce filters or model binding
             nestedAppBuilder.Run(async (httpContext) =>
             {
                 var feature = httpContext.Features.Get<IMiddlewareFilterFeature>();
+                if (feature == null)
+                {
+                    throw new InvalidOperationException($"Could not find {nameof(IMiddlewareFilterFeature)} in the feature list.");
+                }
+
                 var resourceExecutionDelegate = feature.ResourceExecutionDelegate;
 
                 var resourceExecutedContext = await resourceExecutionDelegate();
-                if (resourceExecutedContext.Exception != null)
+
+                // Ideally we want the experience of a middleware pipeline to behave the same as if it was registered,
+                // in Startup. In this scenario an exception thrown in a middelware later in the pipeline gets propagated
+                // back to earlier middleware.
+                // So check if a later resource filter threw an exception and propagate that back to the middleware pipeline.
+                if (resourceExecutedContext.ExceptionHandled == false && resourceExecutedContext.Exception != null)
                 {
                     throw resourceExecutedContext.Exception;
                 }

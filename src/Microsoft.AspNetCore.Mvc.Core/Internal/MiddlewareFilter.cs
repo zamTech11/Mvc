@@ -8,41 +8,39 @@ using Microsoft.AspNetCore.Mvc.Filters;
 
 namespace Microsoft.AspNetCore.Mvc.Internal
 {
-    public class MiddlewareFilter : IAsyncResourceFilter, IOrderedFilter
+    /// <summary>
+    /// A filter which executes a user configured middleware pipeline.
+    /// </summary>
+    public class MiddlewareFilter : IAsyncResourceFilter
     {
-        private readonly RequestDelegate _requestDelegate;
-
-        public MiddlewareFilter(RequestDelegate requestDelegate)
+        public MiddlewareFilter(RequestDelegate middlewarePipeline)
         {
-            if (requestDelegate == null)
+            if (middlewarePipeline == null)
             {
-                throw new ArgumentNullException(nameof(requestDelegate));
+                throw new ArgumentNullException(nameof(middlewarePipeline));
             }
 
-            _requestDelegate = requestDelegate;
+            MiddlewarePipeline = middlewarePipeline;
         }
 
-        public int Order
-        {
-            get
-            {
-                return int.MinValue + 100;
-            }
-        }
+        public RequestDelegate MiddlewarePipeline { get; }
 
         public Task OnResourceExecutionAsync(ResourceExecutingContext context, ResourceExecutionDelegate next)
         {
             var httpContext = context.HttpContext;
 
+            // Capture the current context into the feature. This will later be used in the end middleware to continue
+            // the execution flow to later MVC layers.
+            // Example:
+            // this filter -> user-middleware1 -> user-middleware2 -> the-end-middleware -> resouce filters or model binding
             var feature = new MiddlewareFilterFeature()
             {
                 ResourceExecutionDelegate = next,
                 ResourceExecutingContext = context
             };
-            context.HttpContext.Features.Set<IMiddlewareFilterFeature>(feature);
+            httpContext.Features.Set<IMiddlewareFilterFeature>(feature);
 
-            // TODO: middleware pipeline could throw exceptions
-            return _requestDelegate(httpContext);
+            return MiddlewarePipeline(httpContext);
         }
     }
 }

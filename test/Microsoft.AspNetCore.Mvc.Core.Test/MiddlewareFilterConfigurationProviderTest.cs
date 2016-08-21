@@ -2,82 +2,47 @@
 // Licensed under the Apache License, Version 2.0. See License.txt in the project root for license information.
 
 using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Threading.Tasks;
 using Castle.Core.Logging;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Mvc.Abstractions;
-using Microsoft.AspNetCore.Mvc.Filters;
-using Microsoft.AspNetCore.Mvc.ModelBinding;
-using Microsoft.AspNetCore.Routing;
+using Microsoft.AspNetCore.Mvc.Internal;
 using Microsoft.Extensions.DependencyInjection;
 using Moq;
 using Xunit;
 
 namespace Microsoft.AspNetCore.Mvc
 {
-    public class DefaultMiddlewareFilterConfigurationProviderTest
+    public class MiddlewareFilterConfigurationProviderTest
     {
         [Fact]
-        public void ValidConfigure_WithNoEnvironment_DoesNotThrow()
+        public void ValidConfigure_DoesNotThrow()
         {
             // Arrange
-            var hostingEnvironment = GetHostingEnvironment();
-            var services = new ServiceCollection();
-            services.AddSingleton(hostingEnvironment);
-            var applicationBuilder = GetApplicationBuilder(services);
-            var provider = new DefaultMiddlewareFilterConfigurationProvider(hostingEnvironment);
+            var provider = new MiddlewareFilterConfigurationProvider();
 
-            // Act & Assert
-            provider.Configure(typeof(ValidConfigure_WithNoEnvironment), applicationBuilder);
+            // Act
+            var configureDelegate = provider.CreateConfigureDelegate(typeof(ValidConfigure_WithNoEnvironment));
+
+            // Assert
+            Assert.NotNull(configureDelegate);
         }
 
         [Fact]
-        public void ValidConfigure_WithNoEnvironment_AndAdditionalServices_DoesNotThrow()
+        public void ValidConfigure_AndAdditionalServices_DoesNotThrow()
         {
             // Arrange
-            var hostingEnvironment = GetHostingEnvironment();
             var loggerFactory = Mock.Of<ILoggerFactory>();
             var services = new ServiceCollection();
-            services.AddSingleton(hostingEnvironment);
             services.AddSingleton(loggerFactory);
+            services.AddSingleton(Mock.Of<IHostingEnvironment>());
             var applicationBuilder = GetApplicationBuilder(services);
-            var provider = new DefaultMiddlewareFilterConfigurationProvider(hostingEnvironment);
+            var provider = new MiddlewareFilterConfigurationProvider();
 
-            // Act & Assert
-            provider.Configure(typeof(ValidConfigure_WithNoEnvironment_AdditionalServices), applicationBuilder);
-        }
+            // Act
+            var configureDelegate = provider.CreateConfigureDelegate(typeof(ValidConfigure_WithNoEnvironment_AdditionalServices));
 
-        [Fact]
-        public void ValidConfigure_WithEnvironment_DoesNotThrow()
-        {
-            // Arrange
-            var hostingEnvironment = GetHostingEnvironment("Production");
-            var services = new ServiceCollection();
-            services.AddSingleton(hostingEnvironment);
-            var applicationBuilder = GetApplicationBuilder(services);
-            var provider = new DefaultMiddlewareFilterConfigurationProvider(hostingEnvironment);
-
-            // Act & Assert
-            provider.Configure(typeof(ValidConfigure_WithEnvironment), applicationBuilder);
-        }
-
-        [Fact]
-        public void ValidConfigure_WithEnvironment_AndAdditionalServices_DoesNotThrow()
-        {
-            // Arrange
-            var hostingEnvironment = GetHostingEnvironment("Production");
-            var services = new ServiceCollection();
-            services.AddSingleton(hostingEnvironment);
-            services.AddSingleton(Mock.Of<ILoggerFactory>());
-            var applicationBuilder = GetApplicationBuilder(services);
-            var provider = new DefaultMiddlewareFilterConfigurationProvider(hostingEnvironment);
-
-            // Act & Assert
-            provider.Configure(typeof(ValidConfigure_WithEnvironment_AdditionalServices), applicationBuilder);
+            // Assert
+            Assert.NotNull(configureDelegate);
         }
 
         [Fact]
@@ -85,18 +50,13 @@ namespace Microsoft.AspNetCore.Mvc
         {
             // Arrange
             var type = typeof(InvalidType_NoConfigure);
-            var hostingEnvironment = GetHostingEnvironment();
-            var services = new ServiceCollection();
-            services.AddSingleton(hostingEnvironment);
-            var applicationBuilder = GetApplicationBuilder(services);
-            var provider = new DefaultMiddlewareFilterConfigurationProvider(hostingEnvironment);
-            var expected = $"A public method named 'ConfigureDevelopment' or 'Configure' could not be found in the " +
-                $"'{type.FullName}' type.";
+            var provider = new MiddlewareFilterConfigurationProvider();
+            var expected = $"A public method named 'Configure' could not be found in the '{type.FullName}' type.";
 
             // Act & Assert
             var exception = Assert.Throws<InvalidOperationException>(() =>
             {
-                provider.Configure(type, applicationBuilder);
+                provider.CreateConfigureDelegate(type);
             });
             Assert.Equal(expected, exception.Message);
         }
@@ -106,27 +66,15 @@ namespace Microsoft.AspNetCore.Mvc
         {
             // Arrange
             var type = typeof(InvalidType_NoPublic_Configure);
-            var hostingEnvironment = GetHostingEnvironment();
-            var services = new ServiceCollection();
-            services.AddSingleton(hostingEnvironment);
-            var applicationBuilder = GetApplicationBuilder(services);
-            var provider = new DefaultMiddlewareFilterConfigurationProvider(hostingEnvironment);
-            var expected = $"A public method named 'ConfigureDevelopment' or 'Configure' could not be found in the " +
-                $"'{type.FullName}' type.";
+            var provider = new MiddlewareFilterConfigurationProvider();
+            var expected = $"A public method named 'Configure' could not be found in the '{type.FullName}' type.";
 
             // Act & Assert
             var exception = Assert.Throws<InvalidOperationException>(() =>
             {
-                provider.Configure(type, applicationBuilder);
+                provider.CreateConfigureDelegate(type);
             });
             Assert.Equal(expected, exception.Message);
-        }
-
-        private IHostingEnvironment GetHostingEnvironment(string environmentName = "Development")
-        {
-            var hostingEnvironment = new Mock<IHostingEnvironment>();
-            hostingEnvironment.SetupGet(he => he.EnvironmentName).Returns(environmentName);
-            return hostingEnvironment.Object;
         }
 
         private IApplicationBuilder GetApplicationBuilder(ServiceCollection services = null)

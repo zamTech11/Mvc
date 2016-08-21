@@ -2,72 +2,50 @@
 // Licensed under the Apache License, Version 2.0. See License.txt in the project root for license information.
 
 using System;
-using System.Globalization;
 using System.Linq;
 using System.Reflection;
 using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace Microsoft.AspNetCore.Mvc
+namespace Microsoft.AspNetCore.Mvc.Internal
 {
-    public class DefaultMiddlewareFilterConfigurationProvider : IMiddlewareFilterConfigurationProvider
+    /// <summary>
+    /// Calls into user provided 'Configure' methods for configuring a middleware pipeline. The semantics of finding
+    /// the 'Configure' methods is similar to the application Startup class.
+    /// </summary>
+    public class MiddlewareFilterConfigurationProvider
     {
-        private readonly string _environmentName;
-
-        public DefaultMiddlewareFilterConfigurationProvider(IHostingEnvironment hostingEnvironment)
-        {
-            _environmentName = hostingEnvironment.EnvironmentName;
-        }
-
-        public void Configure(Type middlewarePipelineProviderType, IApplicationBuilder applicationBuilder)
+        public Action<IApplicationBuilder> CreateConfigureDelegate(Type middlewarePipelineProviderType)
         {
             if (middlewarePipelineProviderType == null)
             {
                 throw new ArgumentNullException(nameof(middlewarePipelineProviderType));
             }
-            if (applicationBuilder == null)
-            {
-                throw new ArgumentNullException(nameof(applicationBuilder));
-            }
 
             var instance = Activator.CreateInstance(middlewarePipelineProviderType);
-            var configureDelegateBuilder = GetConfigureDelegateBuilder(middlewarePipelineProviderType, _environmentName);
-            var configureDelegate = configureDelegateBuilder.Build(instance);
-            configureDelegate(applicationBuilder);
+            var configureDelegateBuilder = GetConfigureDelegateBuilder(middlewarePipelineProviderType);
+            return configureDelegateBuilder.Build(instance);
         }
 
-        private static ConfigureBuilder GetConfigureDelegateBuilder(Type startupType, string environmentName)
+        private static ConfigureBuilder GetConfigureDelegateBuilder(Type startupType)
         {
-            var configureMethod = FindMethod(startupType, "Configure{0}", environmentName, typeof(void), required: true);
+            var configureMethod = FindMethod(startupType, typeof(void), required: true);
             return new ConfigureBuilder(configureMethod);
         }
 
         private static MethodInfo FindMethod(
             Type startupType,
-            string methodName,
-            string environmentName,
             Type returnType = null,
             bool required = true)
         {
-            var methodNameWithEnv = string.Format(CultureInfo.InvariantCulture, methodName, environmentName);
-            var methodNameWithNoEnv = string.Format(CultureInfo.InvariantCulture, methodName, "");
+            var methodName = "Configure";
 
             var methods = startupType.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static);
-            var selectedMethods = methods.Where(method => method.Name.Equals(methodNameWithEnv)).ToList();
+            var selectedMethods = methods.Where(method => method.Name.Equals(methodName)).ToList();
             if (selectedMethods.Count > 1)
             {
                 throw new InvalidOperationException(
-                    string.Format("Having multiple overloads of method '{0}' is not supported.", methodNameWithEnv));
-            }
-            if (selectedMethods.Count == 0)
-            {
-                selectedMethods = methods.Where(method => method.Name.Equals(methodNameWithNoEnv)).ToList();
-                if (selectedMethods.Count > 1)
-                {
-                    throw new InvalidOperationException(
-                        string.Format("Having multiple overloads of method '{0}' is not supported.", methodNameWithNoEnv));
-                }
+                    string.Format("Having multiple overloads of method '{0}' is not supported.", methodName));
             }
 
             var methodInfo = selectedMethods.FirstOrDefault();
@@ -77,9 +55,8 @@ namespace Microsoft.AspNetCore.Mvc
                 {
                     throw new InvalidOperationException(
                         string.Format(
-                            "A public method named '{0}' or '{1}' could not be found in the '{2}' type.",
-                            methodNameWithEnv,
-                            methodNameWithNoEnv,
+                            "A public method named '{0}' could not be found in the '{1}' type.",
+                            methodName,
                             startupType.FullName));
 
                 }

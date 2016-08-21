@@ -1,8 +1,12 @@
-﻿@using Microsoft.AspNetCore.Mvc.Localization
-@inject IViewLocalizer Localizer
-
-@{
-    ViewData["Title"] = Localizer["Home Page"];
+﻿@{
+    ViewData["Title"] = "Home Page";
 }
 
-This is @Localizer["Home Page"]
+<div class="row">
+    <div class="col-md-3">
+        <h2>Sandbox</h2>
+        <ul>
+            <li>This sandbox should give you a quick view of a basic MVC application.</li>
+        </ul>
+    </div>
+</div>
