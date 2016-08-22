@@ -32,7 +32,12 @@ namespace Microsoft.AspNetCore.Mvc.Routing
             }
 
             // Perf: Create only one UrlHelper per context
-            var urlHelper = httpContext.Items[typeof(IUrlHelper)] as IUrlHelper;
+            IUrlHelper urlHelper = null;
+
+            if (httpContext.Items.ContainsKey(typeof(IUrlHelper)))
+            {
+                urlHelper = httpContext.Items[typeof(IUrlHelper)] as IUrlHelper;
+            }
             if (urlHelper == null)
             {
                 urlHelper = new UrlHelper(context);
