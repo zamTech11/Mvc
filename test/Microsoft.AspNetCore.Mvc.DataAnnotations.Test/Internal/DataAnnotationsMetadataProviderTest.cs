@@ -589,6 +589,49 @@ namespace Microsoft.AspNetCore.Mvc.DataAnnotations.Internal
             Assert.Equal(expectedDictionary, context.DisplayMetadata.EnumNamesAndValues);
         }
 
+        [Fact]
+        public void CreateDisplayMetadata_DisplayName_Localized()
+        {
+            // Arrange
+            var stringLocalizer = new Mock<IStringLocalizer>(MockBehavior.Strict);
+            stringLocalizer
+                .Setup(s => s[It.IsAny<string>()])
+                .Returns<string>((index) => new LocalizedString(index, index + " value"));
+
+            var stringLocalizerFactory = new Mock<IStringLocalizerFactory>(MockBehavior.Strict);
+            stringLocalizerFactory
+                .Setup(f => f.Create(It.IsAny<Type>()))
+                .Returns(stringLocalizer.Object);
+
+            var type = typeof(EnumWithDisplayNames);
+            var attributes = new object[0];
+
+            var key = ModelMetadataIdentity.ForType(type);
+
+            var provider = new DataAnnotationsMetadataProvider(stringLocalizerFactory.Object);
+            var context = new DisplayMetadataProviderContext(key, new ModelAttributes(attributes));
+
+            // Act
+            provider.CreateDisplayMetadata(context);
+
+            // Assert
+            var expectedKeyValuePairs = new List<KeyValuePair<EnumGroupAndName, string>>
+            {
+                new KeyValuePair<EnumGroupAndName, string>(new EnumGroupAndName("Zero", string.Empty), "0"),
+                new KeyValuePair<EnumGroupAndName, string>(new EnumGroupAndName(string.Empty, nameof(EnumWithDisplayNames.One)), "1"),
+                new KeyValuePair<EnumGroupAndName, string>(new EnumGroupAndName(string.Empty, "dos value"), "2"),
+                new KeyValuePair<EnumGroupAndName, string>(new EnumGroupAndName(string.Empty, "tres value"), "3"),
+                new KeyValuePair<EnumGroupAndName, string>(new EnumGroupAndName(string.Empty, "name from resources"), "-2"),
+                new KeyValuePair<EnumGroupAndName, string>(new EnumGroupAndName("Negatives", "menos uno value"), "-1"),
+            };
+
+            Assert.Equal(
+                expectedKeyValuePairs?.OrderBy(item => item.Key.Group, StringComparer.Ordinal)
+                .ThenBy(item => item.Key.Name, StringComparer.Ordinal),
+                context.DisplayMetadata.EnumGroupedDisplayNamesAndValues?.OrderBy(item => item.Key.Group, StringComparer.Ordinal)
+                .ThenBy(item => item.Key.Name, StringComparer.Ordinal));
+        }
+
         // Type -> expected EnumDisplayNamesAndValues
         public static TheoryData<Type, IEnumerable<KeyValuePair<EnumGroupAndName, string>>> EnumDisplayNamesData
         {

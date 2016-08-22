@@ -153,10 +153,12 @@ namespace Microsoft.AspNetCore.Mvc.DataAnnotations.Internal
                 // Dictionary does not guarantee order will be preserved.
                 var groupedDisplayNamesAndValues = new List<KeyValuePair<EnumGroupAndName, string>>();
                 var namesAndValues = new Dictionary<string, string>();
+                var enumLocalizer = _stringLocalizerFactory.Create(underlyingType);
                 foreach (var name in Enum.GetNames(underlyingType))
                 {
                     var field = underlyingType.GetField(name);
-                    var displayName = GetDisplayName(field);
+                    var displayName = GetDisplayName(enumLocalizer, field);
+
                     var groupName = GetDisplayGroup(field);
                     var value = ((Enum)field.GetValue(obj: null)).ToString("d");
 
@@ -292,7 +294,7 @@ namespace Microsoft.AspNetCore.Mvc.DataAnnotations.Internal
         }
 
         // Return non-empty name specified in a [Display] attribute for a field, if any; field.Name otherwise.
-        private static string GetDisplayName(FieldInfo field)
+        private static string GetDisplayName(IStringLocalizer localizer, FieldInfo field)
         {
             var display = field.GetCustomAttribute<DisplayAttribute>(inherit: false);
             if (display != null)
@@ -301,6 +303,10 @@ namespace Microsoft.AspNetCore.Mvc.DataAnnotations.Internal
                 var name = display.GetName();
                 if (name != null)
                 {
+                    if (localizer != null && name != string.Empty && display.ResourceType == null)
+                    {
+                        name = localizer[name];
+                    }
                     return name;
                 }
             }
