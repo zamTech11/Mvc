@@ -158,7 +158,6 @@ namespace Microsoft.AspNetCore.Mvc.DataAnnotations.Internal
                 {
                     var field = underlyingType.GetField(name);
                     var displayName = GetDisplayName(enumLocalizer, field);
-
                     var groupName = GetDisplayGroup(field);
                     var value = ((Enum)field.GetValue(obj: null)).ToString("d");
 

@@ -593,6 +593,12 @@ namespace Microsoft.AspNetCore.Mvc.DataAnnotations.Internal
         public void CreateDisplayMetadata_DisplayName_Localized()
         {
             // Arrange
+            var type = typeof(EnumWithDisplayNames);
+            var attributes = new object[0];
+
+            var key = ModelMetadataIdentity.ForType(type);
+            var context = new DisplayMetadataProviderContext(key, new ModelAttributes(attributes));
+
             var stringLocalizer = new Mock<IStringLocalizer>(MockBehavior.Strict);
             stringLocalizer
                 .Setup(s => s[It.IsAny<string>()])
@@ -603,13 +609,7 @@ namespace Microsoft.AspNetCore.Mvc.DataAnnotations.Internal
                 .Setup(f => f.Create(It.IsAny<Type>()))
                 .Returns(stringLocalizer.Object);
 
-            var type = typeof(EnumWithDisplayNames);
-            var attributes = new object[0];
-
-            var key = ModelMetadataIdentity.ForType(type);
-
             var provider = new DataAnnotationsMetadataProvider(stringLocalizerFactory.Object);
-            var context = new DisplayMetadataProviderContext(key, new ModelAttributes(attributes));
 
             // Act
             provider.CreateDisplayMetadata(context);
