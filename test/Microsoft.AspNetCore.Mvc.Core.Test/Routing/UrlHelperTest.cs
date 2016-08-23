@@ -1011,6 +1011,28 @@ namespace Microsoft.AspNetCore.Mvc.Routing
             Assert.Same(urlHelper, actionContext.HttpContext.Items[typeof(IUrlHelper)] as IUrlHelper);
         }
 
+        [Fact]
+        public void GetUrlHelper_CreatesNewInstance_IfExpectedTypeIsNotPresent()
+        {
+            // Arrange
+            var httpContext = new Mock<HttpContext>();
+            var mockItems = new Dictionary<object, object>
+            {
+                { typeof(IUrlHelper), null }
+            };
+            httpContext.Setup(h => h.Items).Returns(mockItems);
+
+            var actionContext = CreateActionContext(httpContext.Object, Mock.Of<IRouter>());
+            var urlHelperFactory = new UrlHelperFactory();
+
+            // Act
+            var urlHelper = urlHelperFactory.GetUrlHelper(actionContext);
+
+            // Assert
+            Assert.NotNull(urlHelper);
+            Assert.Same(urlHelper, actionContext.HttpContext.Items[typeof(IUrlHelper)] as IUrlHelper);
+        }
+
         private static HttpContext CreateHttpContext(
             IServiceProvider services,
             string appRoot)
