@@ -1322,6 +1322,28 @@ namespace Microsoft.AspNetCore.Mvc.Internal
         }
 
         [Fact]
+        public async Task InvokeAction_ShortcircuitResult_GetsExecuted_OnlyOnce()
+        {
+            // Arrange
+            var result = new ShorcircuitedActionResult();
+            var filter1 = new TestResourceFilter(TestResourceFilterAction.Passthrough);
+            var filter2 = new TestResourceFilter(TestResourceFilterAction.Passthrough);
+            var filter3 = new TestResourceFilter(TestResourceFilterAction.ShortCircuit);
+            filter3.ActionResultToUse = result;
+            var filter4 = new TestResourceFilter(TestResourceFilterAction.ThrowException); // this should not run.
+            var invoker = CreateInvoker(new[] { filter1, filter2, filter3, filter4 });
+
+            // Act
+            await invoker.InvokeAsync();
+
+            // Assert
+            Assert.Equal(1, result.Count); // the result's execute async should be called only once
+            var resourceExecutedContext = filter1.ResourceExecutedContext;
+            Assert.Same(result, resourceExecutedContext.Result);
+            Assert.True(resourceExecutedContext.Canceled);
+        }
+
+        [Fact]
         public async Task InvokeAction_InvokesAsyncResourceFilter_WithActionResult_FromAction()
         {
             // Arrange
@@ -2751,7 +2773,7 @@ namespace Microsoft.AspNetCore.Mvc.Internal
             Assert.NotNull(listener.AfterAction?.ActionDescriptor);
             Assert.NotNull(listener.AfterAction?.HttpContext);
         }
-        
+
         public async Task InvokeAction_ExceptionBubbling_AsyncActionFilter_To_ResourceFilter()
         {
             // Arrange
@@ -3308,6 +3330,61 @@ namespace Microsoft.AspNetCore.Mvc.Internal
                 }
 
                 return TaskCache.CompletedTask;
+            }
+        }
+
+        private class ShorcircuitedActionResult : IActionResult
+        {
+            public int Count { get; private set; }
+
+            public Task ExecuteResultAsync(ActionContext context)
+            {
+                Count++;
+                return Task.FromResult(true);
+            }
+        }
+
+        private enum TestResourceFilterAction
+        {
+            ShortCircuit,
+            Passthrough,
+            ThrowException
+        }
+
+        private class TestResourceFilter : IAsyncResourceFilter
+        {
+            private readonly TestResourceFilterAction _action;
+
+            public TestResourceFilter(TestResourceFilterAction action)
+            {
+                _action = action;
+            }
+
+            public ShorcircuitedActionResult ActionResultToUse { get; set; }
+
+            public ResourceExecutedContext ResourceExecutedContext { get; private set; }
+
+            public async Task OnResourceExecutionAsync(ResourceExecutingContext context, ResourceExecutionDelegate next)
+            {
+                if (_action == TestResourceFilterAction.Passthrough)
+                {
+                    ResourceExecutedContext = await next();
+                }
+                else if (_action == TestResourceFilterAction.ThrowException)
+                {
+                    throw new InvalidOperationException($"Error from {nameof(TestResourceFilter)}");
+                }
+                else
+                {
+                    if (ActionResultToUse == null)
+                    {
+                        context.Result = new ShorcircuitedActionResult();
+                    }
+                    else
+                    {
+                        context.Result = ActionResultToUse;
+                    }
+                }
             }
         }
     }
