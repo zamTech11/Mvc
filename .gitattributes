@@ -1,6 +1,6 @@
 *.doc  diff=astextplain
 *.DOC	diff=astextplain
-*.docx	diff=astextplaivfvfvfvfvfvn
+*.docx	diff=astextplain
 *.DOCX	diff=astextplain
 *.dot	diff=astextplain
 *.DOT	diff=astextplain
